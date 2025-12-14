@@ -921,10 +921,8 @@ int mainLoop(void) {
                     Camera2D_Component *main_camera_component =
                             ss_get(&ecs.cameras, main_camera);
                     if (event.motion.state & SDL_BUTTON_MMASK) {
-                        main_camera_component->camera.position.x -=
-                                event.motion.xrel / main_camera_component->camera.zoom;
-                        main_camera_component->camera.position.y -=
-                                event.motion.yrel / main_camera_component->camera.zoom;
+                        CAMERA_drag(&main_camera_component->camera,
+                                    event.motion.xrel, event.motion.yrel, pixel_ratio);
                     }
 
                     const SDL_FPoint world_position = cam_screen_to_world(
@@ -936,7 +934,7 @@ int mainLoop(void) {
                 break;
                 case SDL_EVENT_MOUSE_WHEEL: {
                     const float zoom_direction = event.wheel.y > 0 ? 1.0f : -1.0f;
-                    CAMERA_zoom_apply(&ecs, main_camera, zoom_direction, 0.02f);
+                    CAMERA_zoom_apply(&ecs, main_camera, zoom_direction, 12.0f);
                 }
                 break;
                 case SDL_EVENT_WINDOW_RESIZED: {

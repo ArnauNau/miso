@@ -48,6 +48,10 @@ void CAMERA_zoom_set(Camera2D_Component *camera, float zoom,
 // to zoom level, so panning feels consistent regardless of zoom.
 void CAMERA_pan(Camera2D *camera, float dx, float dy, float dt);
 
+// Drag the camera by pixel deltas (e.g., from mouse movement).
+// Converts screen pixels to world units for 1:1 cursor tracking.
+void CAMERA_drag(Camera2D *camera, float xrel, float yrel, float pixel_ratio);
+
 /* SYSTEMS */
 void CAMERA_smooth_zoom_system(ECSWorld *world, float dt,
                                SDL_FPoint mouse_position);

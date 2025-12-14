@@ -3,10 +3,12 @@
 //
 
 #include "camera.h"
+#include "../math_utils.h"
 #include <SDL3/SDL.h>
 
 constexpr float min_zoom = CAMERA_MIN_ZOOM, max_zoom = CAMERA_MAX_ZOOM;
 constexpr float zoom_scale = 0.1f; // scale factor for zooming
+constexpr float zoom_snap_threshold = 0.001f; // snap to target when this close
 
 void CAMERA_zoom_set(Camera2D_Component *const camera, const float zoom, const SDL_FPoint mouse_position) {
     const SDL_FPoint oldPosition = cam_screen_to_world(&camera->camera, mouse_position.x, mouse_position.y);
@@ -28,6 +30,12 @@ void CAMERA_pan(Camera2D *const camera, const float dx, const float dy, const fl
     camera->position.y += dy * speed * dt;
 }
 
+void CAMERA_drag(Camera2D *const camera, const float xrel, const float yrel, const float pixel_ratio) {
+    // Convert pixel deltas to world units for 1:1 cursor tracking
+    camera->position.x -= (xrel * pixel_ratio) / camera->zoom;
+    camera->position.y -= (yrel * pixel_ratio) / camera->zoom;
+}
+
 void CAMERA_smooth_zoom_system(ECSWorld *const world, const float dt, const SDL_FPoint mouse_position) {
     for (Entity component = 0; component < world->smooth_zooms.size; component++) {
         //iterate dense array, get entity from sparse
@@ -37,23 +45,17 @@ void CAMERA_smooth_zoom_system(ECSWorld *const world, const float dt, const SDL_
         const Entity e = ss_get_entity(&world->smooth_zooms, component);
         Camera2D_Component *camera = ss_get(&world->cameras, e);
         if (camera) {
-            const float dir = sz->target_zoom > camera->camera.zoom ? 1.0f : -1.0f;
-
-            const float zoom_variation = sz->speed * camera->camera.zoom * dt * 0.01f;
             const float zoom_diff = SDL_fabsf(sz->target_zoom - camera->camera.zoom);
 
-
-            if (zoom_variation > zoom_diff) {
-                SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Smooth zoom entity %d: reached target_zoom=%.2f", e, sz->target_zoom);
+            if (zoom_diff < zoom_snap_threshold) {
+                // Close enough - snap to target and remove component
                 CAMERA_zoom_set(camera, sz->target_zoom, mouse_position);
-            } else {
-                SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Smooth zoom entity %d: target_zoom=%.2f speed=%.3f variaton=%.5f", e, sz->target_zoom, sz->speed, zoom_variation);
-                CAMERA_zoom_set(camera, camera->camera.zoom + zoom_diff * dir * zoom_scale, mouse_position);
-            }
-
-            if ((dir > 0 && camera->camera.zoom >= sz->target_zoom) || (dir < 0 && camera->camera.zoom <= sz->target_zoom)) {
-                camera->camera.zoom = sz->target_zoom;
                 ss_remove(&world->smooth_zooms, e);
+                SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Smooth zoom entity %d: reached target_zoom=%.2f", e, sz->target_zoom);
+            } else {
+                // Exponential decay toward target (frame-rate independent)
+                const float new_zoom = exp_decayf(camera->camera.zoom, sz->target_zoom, sz->speed, dt);
+                CAMERA_zoom_set(camera, new_zoom, mouse_position);
             }
         }
     }
@@ -76,7 +78,7 @@ void CAMERA_zoom_apply(ECSWorld *const world, const Entity entity, const float z
     } else {
         SmoothZoom_Component *const existing_sz = ss_get(&world->smooth_zooms, entity);
         existing_sz->target_zoom = SDL_clamp(existing_sz->target_zoom + zoom_scale * zoom_direction, min_zoom, max_zoom);
-        existing_sz->speed = SDL_clamp(speed, 0.001f, 0.5f);
+        existing_sz->speed = SDL_clamp(speed, 1.0f, 50.0f);
         SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Updated existing smooth zoom component for entity %d: target_zoom=%.2f, speed=%.4f", entity, existing_sz->target_zoom, existing_sz->speed);
     }
 }
