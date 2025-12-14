@@ -1,8 +1,6 @@
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
 #include <SDL3_ttf/SDL_ttf.h>
-#include <stdio.h>
-#include <stdlib.h>
 
 #include "camera/camera.h"
 #include "profiler.h"
@@ -1075,14 +1073,13 @@ int mainLoop(void) {
 }
 
 int main(void) {
-    atexit(SDL_Quit);
 
     if (initialize() == false) {
-        return EXIT_FAILURE;
+        return 1;
     }
 
     const int result = mainLoop();
-    if (result != EXIT_SUCCESS) {
+    if (result != 0) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
                      "Application exited with error code: %d\n", result);
         return result;
@@ -1090,5 +1087,7 @@ int main(void) {
 
     clean();
 
-    return EXIT_SUCCESS;
+    SDL_Quit();
+
+    return 0;
 }

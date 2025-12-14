@@ -5,8 +5,8 @@
 #ifndef NAU_ENGINE_CAMERA_H
 #define NAU_ENGINE_CAMERA_H
 
-#include "../ecs.h"
-#include "../entity.h"
+#include "../ecs/ecs.h"
+#include "../ecs/entity.h"
 #include <SDL3/SDL.h>
 
 /* Camera constants */

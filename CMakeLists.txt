@@ -21,12 +21,12 @@ add_executable(NAU_Engine main.c
         profiler.h
         camera/camera.c
         camera/camera.h
-        entity.c
-        entity.h
-        sparse_set.c
-        sparse_set.h
-        ecs.c
-        ecs.h
+        ecs/entity.c
+        ecs/entity.h
+        ecs/sparse_set.c
+        ecs/sparse_set.h
+        ecs/ecs.c
+        ecs/ecs.h
         renderer/renderer.c
         renderer/renderer.h
         renderer/ui.c

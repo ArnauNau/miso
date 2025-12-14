@@ -4,7 +4,7 @@
 
 #include "ecs.h"
 
-#include "camera/camera.h"
+#include "../camera/camera.h"
 
 ECSWorld ECS_create() {
     ECSWorld world = {0};

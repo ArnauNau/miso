@@ -4,7 +4,6 @@
 
 #include "ui.h"
 
-#include "SDL3/SDL_properties.h"
 #include "SDL3/SDL_render.h"
 #include "SDL3_ttf/SDL_ttf.h"
 #include "renderer.h"
