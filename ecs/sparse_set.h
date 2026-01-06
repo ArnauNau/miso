@@ -11,6 +11,7 @@
 
 typedef struct SparseSet_ {
     void *dense;                // packed array of components
+    Entity *dense_entities;     // dense_entities[index] = entity that owns this slot (parallel to dense)
     Entity sparse[ENTITY_MAX];  // sparse[entity] = index in dense, or ENTITY_MAX
     Entity size;                // number of active components
     Entity capacity;            // allocated size
