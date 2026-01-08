@@ -473,50 +473,53 @@ SDL_GPUTexture *Renderer_LoadTexture(const char *path) {
             SDL_CreateGPUTransferBuffer(gpu_device, &transfer_info);
 
     Uint8 *map = SDL_MapGPUTransferBuffer(gpu_device, transfer_buffer, false);
-    // Convert surface to RGBA8888 if needed, but for now assuming IMG_Load gives
-    // us something compatible or we convert Ideally we should use
-    // SDL_ConvertSurface to ensure format matches
-    SDL_Surface *converted = SDL_ConvertSurface(
-        surface, SDL_PIXELFORMAT_ABGR8888);
+    // Convert surface to RGBA8888 if needed
     // SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM expects R, G, B, A in memory.
     // SDL_PIXELFORMAT_ABGR8888 on Little Endian is R G B A in memory.
+    SDL_Surface *converted = SDL_ConvertSurface(surface, SDL_PIXELFORMAT_ABGR8888);
 
-    if (converted) {
-        const Uint8 *src_pixels = (const Uint8 *) converted->pixels;
-        Uint8 *dst_pixels = map;
-        const int row_size = converted->w * 4;
-        for (int i = 0; i < converted->h; i++) {
-            SDL_memcpy(dst_pixels, src_pixels, row_size);
-            src_pixels += converted->pitch;
-            dst_pixels += row_size;
-        }
+    if (!converted) {
+        SDL_Log("Failed to convert surface format: %s", SDL_GetError());
         SDL_UnmapGPUTransferBuffer(gpu_device, transfer_buffer);
-
-        SDL_GPUCommandBuffer *cmd = SDL_AcquireGPUCommandBuffer(gpu_device);
-        SDL_GPUCopyPass *copy_pass = SDL_BeginGPUCopyPass(cmd);
-
-        const SDL_GPUTextureTransferInfo source = {
-            .transfer_buffer = transfer_buffer,
-            .offset = 0,
-            .pixels_per_row = (Uint32) converted->w,
-            .rows_per_layer = (Uint32) converted->h
-        };
-
-        const SDL_GPUTextureRegion destination = {
-            .texture = texture,
-            .w = (Uint32) converted->w,
-            .h = (Uint32) converted->h,
-            .d = 1
-        };
-
-        SDL_UploadToGPUTexture(copy_pass, &source, &destination, false);
-        SDL_EndGPUCopyPass(copy_pass);
-        SDL_SubmitGPUCommandBuffer(cmd);
-
         SDL_ReleaseGPUTransferBuffer(gpu_device, transfer_buffer);
-        SDL_DestroySurface(converted);
+        SDL_ReleaseGPUTexture(gpu_device, texture);
+        SDL_DestroySurface(surface);
+        return nullptr;
     }
 
+    const Uint8 *src_pixels = (const Uint8 *) converted->pixels;
+    Uint8 *dst_pixels = map;
+    const int row_size = converted->w * 4;
+    for (int i = 0; i < converted->h; i++) {
+        SDL_memcpy(dst_pixels, src_pixels, row_size);
+        src_pixels += converted->pitch;
+        dst_pixels += row_size;
+    }
+    SDL_UnmapGPUTransferBuffer(gpu_device, transfer_buffer);
+
+    SDL_GPUCommandBuffer *cmd = SDL_AcquireGPUCommandBuffer(gpu_device);
+    SDL_GPUCopyPass *copy_pass = SDL_BeginGPUCopyPass(cmd);
+
+    const SDL_GPUTextureTransferInfo source = {
+        .transfer_buffer = transfer_buffer,
+        .offset = 0,
+        .pixels_per_row = (Uint32) converted->w,
+        .rows_per_layer = (Uint32) converted->h
+    };
+
+    const SDL_GPUTextureRegion destination = {
+        .texture = texture,
+        .w = (Uint32) converted->w,
+        .h = (Uint32) converted->h,
+        .d = 1
+    };
+
+    SDL_UploadToGPUTexture(copy_pass, &source, &destination, false);
+    SDL_EndGPUCopyPass(copy_pass);
+    SDL_SubmitGPUCommandBuffer(cmd);
+
+    SDL_ReleaseGPUTransferBuffer(gpu_device, transfer_buffer);
+    SDL_DestroySurface(converted);
     SDL_DestroySurface(surface);
     return texture;
 }
@@ -537,11 +540,17 @@ void Renderer_BeginFrame(void) {
     if (!SDL_AcquireGPUSwapchainTexture(cmd_buffer, render_window,
                                         &swapchain_texture, nullptr, nullptr)) {
         SDL_Log("DEBUG BeginFrame: Failed to acquire swapchain texture: %s", SDL_GetError());
+        // submit empty command buffer to avoid leak
+        SDL_SubmitGPUCommandBuffer(cmd_buffer);
+        cmd_buffer = nullptr;
         return;
     }
 
     if (!swapchain_texture) {
-        // This can happen if window is minimized - not an error
+        // this can happen if window is minimized, not an error
+        // submit empty command buffer to avoid leak
+        SDL_SubmitGPUCommandBuffer(cmd_buffer);
+        cmd_buffer = nullptr;
         return;
     }
 
@@ -801,10 +810,10 @@ void Renderer_DrawText(TTF_Text *text, const float x, const float y) {
                                SDL_GPU_INDEXELEMENTSIZE_32BIT);
         SDL_BindGPUFragmentSamplers(
             render_pass, 0,
-            &((SDL_GPUTextureSamplerBinding){
+            &(SDL_GPUTextureSamplerBinding){
                 .texture = seq->atlas_texture,
                 .sampler = sampler
-            }),
+            },
             1);
 
         // Color uniform
