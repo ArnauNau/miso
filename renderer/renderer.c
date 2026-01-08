@@ -111,10 +111,10 @@ bool Renderer_Init(SDL_Window *window) {
 
     // 2. Load Sprite Shaders
     SDL_GPUShader *vertex_shader =
-            LoadShader(gpu_device, "shaders/sprite_debug.metal", "vertex_main",
+            LoadShader(gpu_device, "shaders/sprite.metal", "vertex_main",
                        0, 1, 1, 0, SDL_GPU_SHADERSTAGE_VERTEX);
     SDL_GPUShader *fragment_shader =
-            LoadShader(gpu_device, "shaders/sprite_debug.metal",
+            LoadShader(gpu_device, "shaders/sprite.metal",
                        "fragment_main", 1, 0, 0, 0, SDL_GPU_SHADERSTAGE_FRAGMENT);
 
     if (!vertex_shader || !fragment_shader) {

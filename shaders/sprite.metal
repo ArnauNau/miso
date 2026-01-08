@@ -22,11 +22,14 @@ struct VertexOut {
     float2 texCoord;
 };
 
+// SDL_GPU on Metal might order buffers as:
+// - Uniform buffers first: buffer(0)
+// - Storage buffers after: buffer(1)
 vertex VertexOut vertex_main(
     uint vertexID [[vertex_id]],
     uint instanceID [[instance_id]],
-    const device InstanceData *instances [[buffer(0)]],
-    constant Uniforms &uniforms [[buffer(1)]]
+    constant Uniforms &uniforms [[buffer(0)]],
+    const device InstanceData *instances [[buffer(1)]]
 ) {
     InstanceData instance = instances[instanceID];
 
@@ -42,16 +45,15 @@ vertex VertexOut vertex_main(
 
     float2 vertPos = quadVerts[vertexID];
 
-    // Scale position by instance size (use .xy for size)
+    // Scale position by instance size
     float2 worldPos = instance.position.xy + (vertPos * instance.size.xy);
 
-    // Transform to clip space (use .z for depth)
+    // Transform to clip space
     float4 pos = uniforms.viewProjection * float4(worldPos, instance.position.z, 1.0);
-    
+
     // Calculate texture coordinates
-    // texRegion is (u, v, width, height)
     float2 texCoord = instance.texRegion.xy + (vertPos * instance.texRegion.zw);
-    
+
     VertexOut out;
     out.position = pos;
     out.texCoord = texCoord;
@@ -63,11 +65,13 @@ fragment float4 fragment_main(
     texture2d<float> spriteTexture [[texture(0)]],
     sampler textureSampler [[sampler(0)]]
 ) {
-    float4 color = spriteTexture.sample(textureSampler, in.texCoord);
-    
-    if (color.a < 0.1) {
-        discard_fragment();
-    }
-    
-    return color;
+    // DEBUG: Output magenta to verify pipeline works
+//    return float4(1.0, 0.0, 1.0, 1.0);
+
+    // Uncomment below for actual texture sampling:
+     float4 color = spriteTexture.sample(textureSampler, in.texCoord);
+     if (color.a < 0.1) {
+         discard_fragment();
+     }
+     return color;
 }

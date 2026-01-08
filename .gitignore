@@ -7,3 +7,6 @@ vendored
 .zig-cache
 cmake-build-debug
 cmake-build-release
+cmake-build-release-pgo-gen
+cmake-build-release-pgo-use
+.profiles
