@@ -19,6 +19,7 @@
 #include "profiler.h"
 #include "renderer/renderer.h"
 #include "renderer/ui.h"
+#include "tilemap/tilemap.h"
 
 #define WINDOW_WIDTH 1920
 #define WINDOW_HEIGHT 1080
@@ -93,135 +94,6 @@ static bool wireframe_mode = false;
 static bool debug_mode = false;
 static bool vsync = true;
 
-typedef struct Tileset_ {
-    SDL_GPUTexture *texture;    // The tileset image (GPU)
-    unsigned int tile_width;    // Width of each tile (32px)
-    unsigned int tile_height;   // Height of each tile (32px)
-    unsigned int columns;       // Number of columns in the tileset
-    unsigned int rows;          // Number of rows in the tileset
-    unsigned int total_tiles;   // Total number of tiles
-} Tileset;
-
-/**
- * Map information including size, logical representation, rendering info, and view info
- */
-typedef struct Map_ {
-    int *tiles;                 // Array of tile indices
-    int width;                  // Map width in tiles
-    int height;                 // Map height in tiles
-    bool *occupied;             // Building occupancy
-    Tileset *tileset;           // Reference to the tileset
-} Map;
-
-// typedef struct Boat_ {
-//     int x, y;
-//     SDL_Texture *sprite;
-// } Boat;
-
-// bool load_boat(SDL_Renderer *const renderer, const char *const image_path, Boat *const boat) {
-//
-//     SDL_Surface *surface = IMG_Load(image_path);
-//     if (!surface) {
-//         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load boat image: %s", SDL_GetError());
-//         return false;
-//     }
-//
-//     boat->sprite = SDL_CreateTextureFromSurface(renderer, surface);
-//     SDL_DestroyTexture(boat->sprite);
-//
-//     if (!boat->sprite) {
-//         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create boat texture: %s", SDL_GetError());
-//         return false;
-//     }
-//
-//     SDL_SetTextureScaleMode(boat->sprite, SDL_SCALEMODE_NEAREST);
-//
-//     return true;
-// }
-
-Tileset *load_tileset(const char *const SDL_RESTRICT image_path,
-                      const unsigned int tile_width, const unsigned int tile_height)
-{
-    // Allocate tileset structure
-    Tileset *const SDL_RESTRICT tileset = SDL_malloc(sizeof(Tileset));
-    if (!tileset) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to allocate memory for tileset");
-        return nullptr;
-    }
-
-    // Load the texture using the new renderer
-    tileset->texture = Renderer_LoadTexture(image_path);
-    if (!tileset->texture) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create texture from %s", image_path);
-        SDL_free(tileset);
-        return nullptr;
-    }
-
-    // Calculate tileset dimensions
-    // Note: using IMG_Load here ONLY to get dimensions, then free it. It's init time, so it's fine for now.
-
-    SDL_Surface *surface = IMG_Load(image_path);
-    if (surface) {
-        tileset->columns = surface->w / tile_width;
-        tileset->rows = surface->h / tile_height;
-        SDL_DestroySurface(surface);
-    } else {
-        tileset->columns = 0;
-        tileset->rows = 0;
-    }
-
-    tileset->tile_width = tile_width;
-    tileset->tile_height = tile_height;
-    tileset->total_tiles = tileset->columns * tileset->rows;
-
-    SDL_Log("Loaded tileset: %d×%d tiles, %d columns, %d rows, %d total tiles",
-            tile_width, tile_height, tileset->columns, tileset->rows, tileset->total_tiles);
-
-    return tileset;
-}
-
-Map* create_map(const int width, const int height, Tileset *const SDL_RESTRICT tileset) {
-    Map *const map = SDL_malloc(sizeof(Map));
-    if (!map) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to allocate memory for map");
-        return nullptr;
-    }
-
-    map->tiles = (int *) SDL_malloc((unsigned int)width * (unsigned int)height * sizeof(int));
-    if (!map->tiles) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to allocate memory for map data");
-        SDL_free(map);
-        return nullptr;
-    }
-
-    map->occupied = (bool *) SDL_malloc((unsigned int)width * (unsigned int)height * sizeof(bool));
-    if (!map->occupied) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to allocate memory for map data");
-        SDL_free(map->tiles);
-        SDL_free(map);
-        return nullptr;
-    }
-
-    //initialize even on empty, odd on first tile
-    SDL_memset(map->occupied, false, (unsigned int)width * (unsigned int)height * sizeof(bool));
-    for (int i = 0; i < (width * height); i++) {
-        int tile_index = i % 2 ? 0 : 36;
-        if (i > ((width * height) - (width / 2) * (height / 2))) {
-            tile_index = TILE_PLACEHOLDER_SEA;
-        }
-        map->tiles[i] = tile_index;
-        if (tile_index == TILE_PLACEHOLDER_SEA) {
-            //map->occupied[i] = true; //NOTE: commented to allow putting boats on water for now, as I'm considering them buildings to test
-        }
-    }
-
-    map->width = width;
-    map->height = height;
-    map->tileset = tileset;
-
-    return map;
-}
-
 SDL_Point hover_tile = {-1, -1};
 
 
@@ -231,34 +103,29 @@ static float wave_speed = 0.2f;     // how fast does the wave cycle go
 static float wave_amplitude = 0.5f; // how high are the waves (amplitude) in terms of tile height
 static float wave_phase = 0.1f;     // how 'wide' are the waves (period)
 
-//TODO: make a mesh and with thicker lines, avoid overdraw etc...
 // Draw debug highlight on hovered tile (perimeter + beacon)
-void render_tile_highlight(const Map *map, int tile_x, int tile_y, SDL_FColor color) {
-    if (tile_x < 0 || tile_y < 0 || tile_x >= map->width || tile_y >= map->height)
+void render_tile_highlight(const Tilemap *tilemap, int tile_x, int tile_y, SDL_FColor color) {
+    if (tile_x < 0 || tile_y < 0 || tile_x >= tilemap->width || tile_y >= tilemap->height)
         return;
 
-    const float tile_w = (float)map->tileset->tile_width;
-    const float tile_h = (float)map->tileset->tile_height;
-    const float iso_w = tile_w;
-    const float iso_h = tile_h / 2.0f;
+    float world_x, world_y;
+    Tilemap_TileToWorld(tilemap, tile_x, tile_y, &world_x, &world_y);
 
-    // Calculate isometric position (same as render_map)
-    const float start_x = ((float)(map->height - 1) * iso_w) / 2.0f;
-    const float iso_x = start_x + (float)(tile_x - tile_y) * iso_w / 2.0f;
-    const float iso_y = (float)(tile_x + tile_y) * (iso_h / 2.0f);
+    float iso_w, iso_h;
+    Tileset_GetIsoDimensions(tilemap->tileset, &iso_w, &iso_h);
 
     // Diamond vertices for isometric floor (2:1 aspect ratio: iso_w x iso_h)
-    const float top_x = iso_x + iso_w / 2.0f;
-    const float top_y = iso_y;
-    const float right_x = iso_x + iso_w;
-    const float right_y = iso_y + iso_h / 2.0f;
-    const float bottom_x = iso_x + iso_w / 2.0f;
-    const float bottom_y = iso_y + iso_h;
-    const float left_x = iso_x;
-    const float left_y = iso_y + iso_h / 2.0f;
+    const float top_x = world_x + iso_w / 2.0f;
+    const float top_y = world_y;
+    const float right_x = world_x + iso_w;
+    const float right_y = world_y + iso_h / 2.0f;
+    const float bottom_x = world_x + iso_w / 2.0f;
+    const float bottom_y = world_y + iso_h;
+    const float left_x = world_x;
+    const float left_y = world_y + iso_h / 2.0f;
 
-    // Depth for the tile (same formula as render_map)
-    const float depth = 1.0f - (float)(tile_x + tile_y) / (float)(map->width + map->height) - 0.002f;
+    // Depth for the tile
+    const float depth = Tilemap_GetTileDepth(tilemap, tile_x, tile_y) - 0.002f;
 
     // Draw perimeter (4 lines forming diamond)
     Renderer_DrawLine(top_x, top_y, depth, right_x, right_y, depth, color);
@@ -271,85 +138,6 @@ void render_tile_highlight(const Map *map, int tile_x, int tile_y, SDL_FColor co
     Renderer_DrawLine(top_x, top_y, depth, top_x, top_y - beacon_height, depth, color);
 }
 
-void render_map(const Map *const map, const float offset_x, const float offset_y) {
-    PROF_start(PROFILER_RENDER_MAP);
-
-    const float tile_w = (float)map->tileset->tile_width;
-    const float tile_h = (float)map->tileset->tile_height;
-
-    const float iso_w = tile_w;
-    const float iso_h = tile_h / 2.0f;
-
-    // start position for rendering
-    const float start_x = offset_x + ((float) (map->height - 1) * iso_w) / 2;
-    const float start_y = offset_y;
-
-    // TODO: Optimize this to not re-allocate every frame if map is static.
-    const int max_tiles = map->width * map->height;
-    SpriteInstance *instances = SDL_malloc(sizeof(SpriteInstance) * max_tiles);
-    int instance_count = 0;
-
-    // loop through all tiles in the map
-    for (int y = 0; y < map->height; y++) {
-        for (int x = 0; x < map->width; x++) {
-            const int tile_index = map->tiles[y * map->width + x];
-            if (tile_index < 0)
-                continue;
-
-            // calculate isometric position
-            const float iso_x = start_x + (float) (x - y) * iso_w / 2.0f;
-            float tile_y_offset = 0.0f;
-
-            if (tile_index == TILE_PLACEHOLDER_SEA) {
-                const float phase = (float) (x + y) * wave_phase;
-                const float adjusted_amplitude = (iso_h / 2.0f) * wave_amplitude;
-                const float wave_offset_compensation =
-                        ((iso_h / 2.0f) * wave_amplitude) + (iso_h / 2.0f);
-                const float wave_time = game_clock.total * SDL_PI_F * 2.0f * wave_speed;
-                tile_y_offset = SDL_sinf(wave_time + phase) * adjusted_amplitude -
-                                wave_offset_compensation;
-            }
-            const float iso_y =
-                    start_y + ((float) (x + y) * (iso_h / 2.0f)) - tile_y_offset;
-
-            // UV Coordinates
-            const int col = tile_index % map->tileset->columns;
-            const int row = tile_index / map->tileset->columns;
-
-            const float tex_w =
-                    (float) (map->tileset->columns * map->tileset->tile_width);
-            const float tex_h =
-                    (float) (map->tileset->rows * map->tileset->tile_height);
-
-            const float u = (float) (col * map->tileset->tile_width) / tex_w;
-            const float v = (float) (row * map->tileset->tile_height) / tex_h;
-            const float uw = (float) map->tileset->tile_width / tex_w;
-            const float vh = (float) map->tileset->tile_height / tex_h;
-
-            // Z-Sorting: Depth based on Y (painter's algorithm); map (x+y) to Z. In isometric view, tiles with
-            // higher (x+y) are closer to bottom (camera) with "<=" depth test: Z=0 is front, Z=1 is back; so we
-            // flip it: high (x+y) -> low depth (front).
-            const float depth = 1.0f - (float) (x + y) / (float) (map->width + map->height);
-
-            instances[instance_count++] = (SpriteInstance){
-                .x = iso_x,
-                .y = iso_y,
-                .z = depth,
-                .w = tile_w,
-                .h = tile_h,
-                .u = u,
-                .v = v,
-                .uw = uw,
-                .vh = vh
-            };
-        }
-    }
-
-    Renderer_DrawSprites(map->tileset->texture, instances, instance_count);
-    SDL_free(instances);
-
-    PROF_stop(PROFILER_RENDER_MAP);
-}
 
 typedef struct WireframeMesh_ {
     SDL_Vertex *verts;
@@ -360,7 +148,6 @@ static WireframeMesh wireframe_meshes[MAX_BUILDINGS];
 
 // --- helper to build and cache a mesh ---
 static WireframeMesh build_wireframe_mesh(
-    const Map *const SDL_RESTRICT map,
     const float iso_x, const float iso_y,
     const float iso_w, const float iso_h,
     const int bw, const int bl,
@@ -509,7 +296,7 @@ static WireframeMesh build_wireframe_mesh(
     return (WireframeMesh){.verts = v, .vert_count = idx};
 }
 
-void render_buildings(const Map *const map, const TransformComponent *const ts,
+void render_buildings(const Tilemap *const map, const TransformComponent *const ts,
                       const RenderableComponent *const rs, const int b_count,
                       const float offset_x, const float offset_y) {
     PROF_start(PROFILER_RENDER_BUILDINGS);
@@ -558,8 +345,11 @@ void render_buildings(const Map *const map, const TransformComponent *const ts,
             .x = iso_x,
             .y = iso_y,
             .z = depth,
+            .flags = 0.0f,       // Not water
             .w = (float) (bw * tile_w),
             .h = (float) (bh * tile_h),
+            .tile_x = 0.0f,
+            .tile_y = 0.0f,
             .u = u,
             .v = v,
             .uw = uw,
@@ -575,81 +365,11 @@ void render_buildings(const Map *const map, const TransformComponent *const ts,
 
 //TODO:
 // - buildings (in general, trees also count, things that fill the map)
+// TODO:
 // - bounds checking
 // - clickable entities (buildings, boats etc... even people????)
 // - use ECS to animate tiles (adding transform components or enabling them whatever), first example would be animating the sea!
 // - make some kind of 'fixedUpdate' to run logic (transforms, economy, etc), 'ticks'.
-static inline bool is_tile_free(const Map *const map, const SDL_Point point) {
-    if (point.x < 0 || point.y < 0 || point.x >= map->width || point.y >= map->height) {
-        return false;
-    }
-    return !map->occupied[point.y * map->width + point.x];
-}
-
-SDL_Point screen_to_map_tile(const float mouse_x, const float mouse_y,
-                             const Map *const map, const float offset_x,
-                             const float offset_y /*, const float scale*/) {
-    // Tile dimensions from the map's tileset (logical, before scaling)
-    const float tile_pixel_width = (float) map->tileset->tile_width;
-    const float tile_pixel_height = (float) map->tileset->tile_height;
-
-    // Isometric dimensions used for projection (logical, before scaling)
-    // iso_tile_width is the width of the base of the diamond tile.
-    // iso_tile_height_step is the vertical distance moved on screen for each step in cartesian Y.
-    const float iso_tile_width = tile_pixel_width;
-    const float iso_tile_height_step = tile_pixel_height / 2.0f; // This is `iso_h` in render_map
-
-    // Half of these dimensions are used in the projection formulas
-    const float half_iso_tile_width = iso_tile_width / 2.0f;
-    const float half_iso_tile_height_step = iso_tile_height_step / 2.0f;
-
-    // Calculate the logical origin point (anchor of tile 0,0) on the screen, before scaling.
-    // This must exactly match the start_x and start_y calculation in render_map.
-    const float map_origin_logical_x = offset_x + ((float)(map->height - 1) * iso_tile_width) / 2.0f + half_iso_tile_width;
-    const float map_origin_logical_y = offset_y;
-
-    // Convert mouse coordinates from window (screen pixel) space to logical space
-    // by dividing by the render scale.
-    const float logical_mouse_x = mouse_x /* / scale */;
-    const float logical_mouse_y = mouse_y /* / scale */;
-
-    // Calculate mouse position relative to the map's logical origin.
-    const float mouse_rel_to_origin_x = logical_mouse_x - map_origin_logical_x;
-    const float mouse_rel_to_origin_y = logical_mouse_y - map_origin_logical_y;
-
-    // Inverse isometric projection:
-    const float term_a = mouse_rel_to_origin_x / half_iso_tile_width;
-    const float term_b = mouse_rel_to_origin_y / half_iso_tile_height_step;
-
-    const float cart_map_x_float = (term_a + term_b) / 2.0f;
-    const float cart_map_y_float = (term_b - term_a) / 2.0f;
-
-    // Convert floating point map coordinates to integer tile indices
-    SDL_Point map_coords;
-    map_coords.x = (int) SDL_floorf(cart_map_x_float);
-    map_coords.y = (int) SDL_floorf(cart_map_y_float);
-
-    return map_coords;
-}
-
-void destroy_tileset(Tileset *tileset) {
-    if (tileset) {
-        // Renderer_DestroyTexture(tileset->texture); // TODO: Implement this
-        SDL_free(tileset);
-    }
-}
-
-void destroy_map(Map *map) {
-    if (map) {
-        if (map->tiles) {
-            SDL_free(map->tiles);
-        }
-        if (map->occupied) {
-            SDL_free(map->occupied);
-        }
-        SDL_free(map);
-    }
-}
 
 SDL_Window *window = nullptr;
 SDL_Renderer *renderer = nullptr;
@@ -659,8 +379,8 @@ TTF_Text *fps_text = nullptr;
 
 #define MAP_SIZE_X 70
 #define MAP_SIZE_Y 40
-Tileset tileset;
-Map map;
+static Tileset *tileset = nullptr;
+static Tilemap *tilemap = nullptr;
 Entity main_camera;
 ECSWorld ecs;
 
@@ -730,18 +450,33 @@ int initialize(void) {
         SDL_Log("Warning: Failed to initialize debug UI");
     }
 
-    const Tileset *const ts = load_tileset("isometric-sheet.png", TILE_SIZE, TILE_SIZE);
-    if (ts == nullptr) {
+    tileset = Tileset_Load("isometric-sheet.png", TILE_SIZE, TILE_SIZE);
+    if (tileset == nullptr) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load tileset");
         return false;
     }
-    tileset = *ts;
-    const Map *const mp = create_map(MAP_SIZE_X, MAP_SIZE_Y, &tileset);
-    if (mp == nullptr) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create map");
+
+    tilemap = Tilemap_Create(MAP_SIZE_X, MAP_SIZE_Y, tileset);
+    if (tilemap == nullptr) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create tilemap");
         return false;
     }
-    map = *mp;
+
+    // Initialize demo map: checkerboard pattern with sea in corner
+    for (int y = 0; y < tilemap->height; y++) {
+        for (int x = 0; x < tilemap->width; x++) {
+            const int i = y * tilemap->width + x;
+            int tile_index = (i % 2) ? 0 : 36;  // Checkerboard
+
+            // Sea tiles in the far corner
+            if (i > (tilemap->width * tilemap->height) - (tilemap->width / 2) * (tilemap->height / 2)) {
+                tile_index = TILE_PLACEHOLDER_SEA;
+                Tilemap_SetFlags(tilemap, x, y, TILE_FLAG_WATER);
+            }
+
+            Tilemap_SetTile(tilemap, x, y, tile_index);
+        }
+    }
 
     ecs = ECS_create();
 
@@ -776,6 +511,10 @@ void clean(void) {
         SDL_free(wireframe_meshes[i].verts);
     }
 
+    // Clean up tilemap (before renderer shutdown)
+    Tilemap_Destroy(tilemap);
+    Tileset_Destroy(tileset);
+
     if (fps_text)
         TTF_DestroyText(fps_text);
 
@@ -790,101 +529,92 @@ void clean(void) {
 
 // TODO: make sure not to spawn boats or buildings out of bounds (even partially)
 void spawn_boat(const int x, const int y) {
-    //const Camera2D_Component *main_camera_component = ss_get(&ecs.cameras, main_camera);
     constexpr int b_w = 1;
     constexpr int b_l = 3; //NOTE: to test building width and length
 
-    SDL_Log("tile index at bpl: %d", map.tiles[hover_tile.x + hover_tile.y * map.width]);
+    SDL_Log("tile index at bpl: %d", Tilemap_GetTile(tilemap, hover_tile.x, hover_tile.y));
 
-    //if (map.tiles[hover_tile.x + hover_tile.y * map.width] == TILE_PLACEHOLDER_SEA) {
-        //spawn a boat instead
-        renderables[building_count].tile_index = TILE_PLACEHOLDER_BOAT;
-        renderables[building_count].sprite_w = 2;
-        renderables[building_count].sprite_h = 3;
-        SDL_Log("Boat placed at: %d, %d", hover_tile.x, hover_tile.y);
-    // }
-    // else {
-    //     buildings[building_count].tile_index = TILE_PLACEHOLDER_BUILDING;
-    //     SDL_Log("Building placed at: %d, %d", hover_tile.x, hover_tile.y);
-    // }
+    renderables[building_count].tile_index = TILE_PLACEHOLDER_BOAT;
+    renderables[building_count].sprite_w = 2;
+    renderables[building_count].sprite_h = 3;
+    SDL_Log("Boat placed at: %d, %d", hover_tile.x, hover_tile.y);
 
     transforms[building_count].x = x;
     transforms[building_count].y = y;
     buildings[building_count].width = b_w;
     buildings[building_count].length = b_l;
-    // buildings[building_count].type = TYPE_BOAT;
-    // mark occupancy
+
+    // Mark occupancy
     for (int dy = 0; dy > -b_l; dy--) {
         for (int dx = 0; dx > -b_w; dx--) {
-            map.occupied[(hover_tile.y+dy)*map.width + (hover_tile.x+dx)] = true;
-            map.tiles[(hover_tile.y+dy)*map.width + (hover_tile.x+dx)] = TILE_PLACEHOLDER_TERRAIN;
+            Tilemap_SetOccupied(tilemap, hover_tile.x + dx, hover_tile.y + dy, true);
+            Tilemap_SetTile(tilemap, hover_tile.x + dx, hover_tile.y + dy, TILE_PLACEHOLDER_TERRAIN);
+            // Remove water flag when placing building
+            Tilemap_SetFlags(tilemap, hover_tile.x + dx, hover_tile.y + dy, TILE_FLAG_NONE);
         }
     }
 
-    // TODO: refactor this wireframe generation stuff into sprite loading
+    // Wireframe generation
     constexpr float b_h_ = 3.0f;
     constexpr float b_w_ = 1.0f;
-    const float tile_w = (float) map.tileset->tile_width;
-    const float tile_h = (float) map.tileset->tile_height;
+    const float tile_w = (float) tilemap->tileset->tile_width;
+    const float tile_h = (float) tilemap->tileset->tile_height;
     const float iso_w = tile_w;
     const float iso_h = tile_h * 0.5f;
-    const float start_x = (float) (map.height - 1) * iso_w * 0.5f;
+    const float start_x = (float) (tilemap->height - 1) * iso_w * 0.5f;
     constexpr float start_y = 0.0f;
     const float iso_x = start_x + (float) (x - y) * iso_w * 0.5f - (b_w_ - 1) * iso_w * 0.5f;
     const float iso_y = start_y + (float) (x + y) * iso_h * 0.5f - tile_h - b_h_ * iso_h;
-    wireframe_meshes[building_count] = build_wireframe_mesh(&map, iso_x, iso_y, iso_w, iso_h, 1, 3, 2, 3);
+    wireframe_meshes[building_count] = build_wireframe_mesh(iso_x, iso_y, iso_w, iso_h, 1, 3, 2, 3);
 
     building_count++;
 }
 
-void spawn_boats(const int amount, int *const restrict bldng_count, int *const restrict map_tiles, bool *const restrict map_occupied, const int map_width, const int map_height) {
-//TODO: get logic from spawn from click and delete this...
+void spawn_boats(const int amount) {
     int count = 0;
-    for (int y = map_height-1; y >= 2; y-=3) {
-        for (int x = 0; x < map_width; x++) {
-            // Check if the boat can fit in the current position
-            if (unlikely(count >= amount || *bldng_count >= MAX_BUILDINGS)) {
+    for (int y = tilemap->height - 1; y >= 2; y -= 3) {
+        for (int x = 0; x < tilemap->width; x++) {
+            if (unlikely(count >= amount || building_count >= MAX_BUILDINGS)) {
                 return;
             }
-            if (likely(y - 2 < map_height && y - 1 < map_height &&
-                !map_occupied[y * map_width + x] &&
-                !map_occupied[(y-1) * map_width + (x)] &&
-                !map_occupied[(y-2) * map_width + (x)])) {
 
-                // Place the boat tiles
-                map_tiles[y * map_width + x] = TILE_PLACEHOLDER_TERRAIN;
-                map_tiles[(y-1) * map_width + (x)] = TILE_PLACEHOLDER_TERRAIN;
-                map_tiles[(y-2) * map_width + (x)] = TILE_PLACEHOLDER_TERRAIN;
+            // Check if boat can fit (3 tiles vertically)
+            if (Tilemap_IsTileFree(tilemap, x, y) &&
+                Tilemap_IsTileFree(tilemap, x, y - 1) &&
+                Tilemap_IsTileFree(tilemap, x, y - 2)) {
 
-                // Mark the tiles as occupied
-                map_occupied[y * map_width + x] = true;
-                map_occupied[(y-1) * map_width + (x)] = true;
-                map_occupied[(y-2) * map_width + (x)] = true;
+                // Place boat tiles and mark occupied
+                for (int dy = 0; dy < 3; dy++) {
+                    Tilemap_SetTile(tilemap, x, y - dy, TILE_PLACEHOLDER_TERRAIN);
+                    Tilemap_SetOccupied(tilemap, x, y - dy, true);
+                    Tilemap_SetFlags(tilemap, x, y - dy, TILE_FLAG_NONE);
+                }
 
-                // renderables
-                renderables[*bldng_count].tile_index = TILE_PLACEHOLDER_BOAT;
-                renderables[*bldng_count].sprite_w = 2;
-                renderables[*bldng_count].sprite_h = 3;
+                // Renderables
+                renderables[building_count].tile_index = TILE_PLACEHOLDER_BOAT;
+                renderables[building_count].sprite_w = 2;
+                renderables[building_count].sprite_h = 3;
 
-                // components
-                transforms[*bldng_count].x = x;
-                transforms[*bldng_count].y = y;
-                buildings[*bldng_count].width = 1;
-                buildings[*bldng_count].length = 3;
+                // Components
+                transforms[building_count].x = x;
+                transforms[building_count].y = y;
+                buildings[building_count].width = 1;
+                buildings[building_count].length = 3;
 
+                // Wireframe
                 constexpr float b_h_ = 3.0f;
                 constexpr float b_w_ = 1.0f;
-                const float tile_w = (float) map.tileset->tile_width;
-                const float tile_h = (float) map.tileset->tile_height;
+                const float tile_w = (float) tilemap->tileset->tile_width;
+                const float tile_h = (float) tilemap->tileset->tile_height;
                 const float iso_w = tile_w;
                 const float iso_h = tile_h * 0.5f;
-                const float start_x = (float) (map.height - 1) * iso_w * 0.5f;
+                const float start_x = (float) (tilemap->height - 1) * iso_w * 0.5f;
                 constexpr float start_y = 0.0f;
                 const float iso_x = start_x + (float) (x - y) * iso_w * 0.5f - (b_w_ - 1) * iso_w * 0.5f;
                 const float iso_y = start_y + (float) (x + y) * iso_h * 0.5f - tile_h - b_h_ * iso_h;
-                wireframe_meshes[building_count] = build_wireframe_mesh(&map, iso_x, iso_y, iso_w, iso_h, 1, 3, 2, 3);
+                wireframe_meshes[building_count] = build_wireframe_mesh(iso_x, iso_y, iso_w, iso_h, 1, 3, 2, 3);
 
-                (*bldng_count)++;
+                building_count++;
                 count++;
             }
         }
@@ -934,8 +664,7 @@ int mainLoop(void) {
                             debug_mode = !debug_mode;
                             break;
                         case SDLK_PLUS:
-                            spawn_boats(50, &building_count, map.tiles, map.occupied, map.width,
-                                        map.height);
+                            spawn_boats(50);
                             break;
                         case SDLK_Z: {
                             Camera2D_Component *main_camera_component =
@@ -972,15 +701,12 @@ int mainLoop(void) {
                     break;
                 case SDL_EVENT_MOUSE_BUTTON_DOWN:
                     if (event.button.button == SDL_BUTTON_LEFT) {
-                        if (hover_tile.x < map.width && hover_tile.y < map.height &&
-                            hover_tile.x >= 0 && hover_tile.y >= 0) {
+                        if (hover_tile.x >= 0 && hover_tile.y >= 0 &&
+                            hover_tile.x < tilemap->width && hover_tile.y < tilemap->height) {
                             if (building_count < MAX_BUILDINGS) {
-                                bool ok = true;
-                                // Simple check
-                                if (!is_tile_free(&map, hover_tile))
-                                    ok = false;
-                                if (ok)
+                                if (Tilemap_IsTileFree(tilemap, hover_tile.x, hover_tile.y)) {
                                     spawn_boat(hover_tile.x, hover_tile.y);
+                                }
                             }
                         }
                     }
@@ -989,8 +715,6 @@ int mainLoop(void) {
                     SDL_GetMouseState(&mouse_x, &mouse_y);
                     mouse_x *= pixel_ratio;
                     mouse_y *= pixel_ratio;
-                    // SDL_RenderCoordinatesFromWindow(renderer, ...); // No longer needed
-                    // if we use window coords directly or map them
 
                     Camera2D_Component *main_camera_component =
                             ss_get(&ecs.cameras, main_camera);
@@ -1001,8 +725,7 @@ int mainLoop(void) {
 
                     const SDL_FPoint world_position = cam_screen_to_world(
                         &main_camera_component->camera, mouse_x, mouse_y);
-                    mouse_tile = screen_to_map_tile(world_position.x, world_position.y,
-                                                    &map, 0.0f, 0.0f);
+                    mouse_tile = Tilemap_ScreenToTile(tilemap, world_position.x, world_position.y);
                     hover_tile = mouse_tile;
                 }
                 break;
@@ -1047,26 +770,19 @@ int mainLoop(void) {
         Renderer_SetViewProjection(view_proj);
 
 
-        render_map(&map, 0, 0); // Offset handled by matrix now?
-        // Wait, `render_map` uses `offset_x` to calculate positions.
-        // If we pass 0,0, it calculates world positions relative to 0,0.
-        // The matrix handles the camera offset.
-        // BUT `render_map` logic: `start_x = offset_x + ...`
-        // If we pass 0, `start_x` is just the map origin in world space.
-        // Yes, that's correct.
+        // Render tilemap (water animation handled by shader)
+        PROF_start(PROFILER_RENDER_MAP);
+        Tilemap_Render(tilemap);
+        PROF_stop(PROFILER_RENDER_MAP);
 
-        render_buildings(&map, transforms, renderables, building_count, 0, 0);
+        render_buildings(tilemap, transforms, renderables, building_count, 0, 0);
 
         // Debug tile highlight (perimeter + beacon on hovered tile)
-        render_tile_highlight(&map, hover_tile.x, hover_tile.y,
+        render_tile_highlight(tilemap, hover_tile.x, hover_tile.y,
                               (SDL_FColor){0.0f, 1.0f, 1.0f, 1.0f});
 
-        // DEBUG: Draw a filled red quad to verify geometry pipeline works for
-        // filled shapes Renderer_DrawFilledQuadDebug(100, 150, 200, 100,
-        // (SDL_FColor){1.0f, 0.0f, 0.0f, 1.0f});
-
         // DEBUG: Draw the tileset texture in the corner to verify sprite pipeline
-        Renderer_DrawTextureDebug(map.tileset->texture, 50,
+        Renderer_DrawTextureDebug(tilemap->tileset->texture, 50,
                                   screen_height - 384 - 50, 192, 384);
 
         if (wireframe_mode) {
@@ -1078,8 +794,6 @@ int mainLoop(void) {
                 SDL_memcpy(combined + offset, wireframe_meshes[i].verts,
                            sizeof(SDL_Vertex) * wireframe_meshes[i].vert_count);
                 offset += wireframe_meshes[i].vert_count;
-                // Renderer_DrawGeometry(wireframe_meshes[i].verts,
-                //                       wireframe_meshes[i].vert_count);
             }
             Renderer_DrawGeometry(combined, offset);
             SDL_free(combined);
@@ -1144,7 +858,7 @@ int mainLoop(void) {
             nk_labelf(nk, NK_TEXT_LEFT, "Hover: (%d, %d)", hover_tile.x, hover_tile.y);
             nk_layout_row_dynamic(nk, 30*ui_s, 2);
             if (nk_button_label(nk, "Spawn 50")) {
-                spawn_boats(50, &building_count, map.tiles, map.occupied, map.width, map.height);
+                spawn_boats(50);
             }
             if (nk_button_label(nk, "Toggle Wire")) {
                 wireframe_mode = !wireframe_mode;

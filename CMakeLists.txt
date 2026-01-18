@@ -54,6 +54,8 @@ set(NAU_SOURCES
     renderer/ui.c
     renderer/ui.h
     renderer/nuklear_sdl3_gpu.h
+    tilemap/tilemap.c
+    tilemap/tilemap.h
     debug_ui.c
     debug_ui.h
 )
