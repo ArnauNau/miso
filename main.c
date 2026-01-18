@@ -231,6 +231,46 @@ static float wave_speed = 0.2f;     // how fast does the wave cycle go
 static float wave_amplitude = 0.5f; // how high are the waves (amplitude) in terms of tile height
 static float wave_phase = 0.1f;     // how 'wide' are the waves (period)
 
+//TODO: make a mesh and with thicker lines, avoid overdraw etc...
+// Draw debug highlight on hovered tile (perimeter + beacon)
+void render_tile_highlight(const Map *map, int tile_x, int tile_y, SDL_FColor color) {
+    if (tile_x < 0 || tile_y < 0 || tile_x >= map->width || tile_y >= map->height)
+        return;
+
+    const float tile_w = (float)map->tileset->tile_width;
+    const float tile_h = (float)map->tileset->tile_height;
+    const float iso_w = tile_w;
+    const float iso_h = tile_h / 2.0f;
+
+    // Calculate isometric position (same as render_map)
+    const float start_x = ((float)(map->height - 1) * iso_w) / 2.0f;
+    const float iso_x = start_x + (float)(tile_x - tile_y) * iso_w / 2.0f;
+    const float iso_y = (float)(tile_x + tile_y) * (iso_h / 2.0f);
+
+    // Diamond vertices for isometric floor (2:1 aspect ratio: iso_w x iso_h)
+    const float top_x = iso_x + iso_w / 2.0f;
+    const float top_y = iso_y;
+    const float right_x = iso_x + iso_w;
+    const float right_y = iso_y + iso_h / 2.0f;
+    const float bottom_x = iso_x + iso_w / 2.0f;
+    const float bottom_y = iso_y + iso_h;
+    const float left_x = iso_x;
+    const float left_y = iso_y + iso_h / 2.0f;
+
+    // Depth for the tile (same formula as render_map)
+    const float depth = 1.0f - (float)(tile_x + tile_y) / (float)(map->width + map->height) - 0.002f;
+
+    // Draw perimeter (4 lines forming diamond)
+    Renderer_DrawLine(top_x, top_y, depth, right_x, right_y, depth, color);
+    Renderer_DrawLine(right_x, right_y, depth, bottom_x, bottom_y, depth, color);
+    Renderer_DrawLine(bottom_x, bottom_y, depth, left_x, left_y, depth, color);
+    Renderer_DrawLine(left_x, left_y, depth, top_x, top_y, depth, color);
+
+    // Draw beacon (vertical ray going up from top of tile)
+    constexpr float beacon_height = 200.0f;
+    Renderer_DrawLine(top_x, top_y, depth, top_x, top_y - beacon_height, depth, color);
+}
+
 void render_map(const Map *const map, const float offset_x, const float offset_y) {
     PROF_start(PROFILER_RENDER_MAP);
 
@@ -1016,6 +1056,10 @@ int mainLoop(void) {
         // Yes, that's correct.
 
         render_buildings(&map, transforms, renderables, building_count, 0, 0);
+
+        // Debug tile highlight (perimeter + beacon on hovered tile)
+        render_tile_highlight(&map, hover_tile.x, hover_tile.y,
+                              (SDL_FColor){0.0f, 1.0f, 1.0f, 1.0f});
 
         // DEBUG: Draw a filled red quad to verify geometry pipeline works for
         // filled shapes Renderer_DrawFilledQuadDebug(100, 150, 200, 100,
