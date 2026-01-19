@@ -25,8 +25,13 @@ static SDL_GPURenderPass *render_pass = nullptr;
 #define MAX_INSTANCES 10000
 static SDL_GPUBuffer *instance_buffer = nullptr;
 
-// Uniforms
-static float view_projection_matrix[16];
+// Uniforms (must match shader Uniforms struct: 64 bytes matrix + 16 bytes water params)
+typedef struct {
+    float viewProjection[16];  // 64 bytes
+    float waterParams[4];      // 16 bytes: time, speed, amplitude, phase
+} SpriteUniforms;
+
+static SpriteUniforms sprite_uniforms = {0};
 
 // Shader bytecode loading helper
 static SDL_GPUShader *LoadShader(SDL_GPUDevice *device, const char *path,
@@ -590,7 +595,15 @@ void Renderer_EndFrame(void) {
 }
 
 void Renderer_SetViewProjection(const float *viewProjMatrix) {
-    SDL_memcpy(view_projection_matrix, viewProjMatrix, sizeof(float) * 16);
+    SDL_memcpy(sprite_uniforms.viewProjection, viewProjMatrix, sizeof(float) * 16);
+}
+
+void Renderer_SetWaterParams(const float time, const float speed,
+                              const float amplitude, const float phase) {
+    sprite_uniforms.waterParams[0] = time;
+    sprite_uniforms.waterParams[1] = speed;
+    sprite_uniforms.waterParams[2] = amplitude;
+    sprite_uniforms.waterParams[3] = phase;
 }
 
 void Renderer_DrawSprites(SDL_GPUTexture *texture,
@@ -682,9 +695,9 @@ void Renderer_DrawSprites(SDL_GPUTexture *texture,
         1);
     SDL_BindGPUVertexStorageBuffers(render_pass, 0, &draw_instance_buffer, 1);
 
-    // Push ViewProjection Matrix
-    SDL_PushGPUVertexUniformData(cmd_buffer, 0, view_projection_matrix,
-                                 sizeof(view_projection_matrix));
+    // Push uniforms (view projection + water params)
+    SDL_PushGPUVertexUniformData(cmd_buffer, 0, &sprite_uniforms,
+                                 sizeof(sprite_uniforms));
 
     SDL_DrawGPUPrimitives(render_pass, 6, count, 0, 0);
 
@@ -888,8 +901,8 @@ void Renderer_DrawLine(const float x1, const float y1, const float z1,
     SDL_BindGPUVertexBuffers(
         render_pass, 0, &((SDL_GPUBufferBinding){.buffer = vb, .offset = 0}), 1);
 
-    SDL_PushGPUVertexUniformData(cmd_buffer, 0, view_projection_matrix,
-                                 sizeof(view_projection_matrix));
+    SDL_PushGPUVertexUniformData(cmd_buffer, 0, sprite_uniforms.viewProjection,
+                                 sizeof(sprite_uniforms.viewProjection));
     SDL_PushGPUFragmentUniformData(cmd_buffer, 0, &color, sizeof(color));
 
     SDL_DrawGPUPrimitives(render_pass, 2, 1, 0, 0);
@@ -949,8 +962,8 @@ void Renderer_DrawGeometry(const SDL_Vertex *vertices, const int count) {
     SDL_BindGPUVertexBuffers(
         render_pass, 0, &((SDL_GPUBufferBinding){.buffer = vb, .offset = 0}), 1);
 
-    SDL_PushGPUVertexUniformData(cmd_buffer, 0, view_projection_matrix,
-                                 sizeof(view_projection_matrix));
+    SDL_PushGPUVertexUniformData(cmd_buffer, 0, sprite_uniforms.viewProjection,
+                                 sizeof(sprite_uniforms.viewProjection));
 
     SDL_DrawGPUPrimitives(render_pass, (Uint32) count, 1, 0, 0);
 
@@ -1034,30 +1047,31 @@ void Renderer_DrawTextureDebug(SDL_GPUTexture *texture,
     int w, h;
     SDL_GetWindowSizeInPixels(render_window, &w, &h);
 
-    // Orthographic projection: maps screen coords to NDC
-    // X: 0..w -> -1..1
-    // Y: 0..h -> 1..-1 (flip Y so 0 is top)
-    const float screen_proj[16] = {
-        2.0f / w, 0.0f, 0.0f, 0.0f, // column 0
-        0.0f, -2.0f / h, 0.0f, 0.0f, // column 1
-        0.0f, 0.0f, 1.0f, 0.0f, // column 2
-        -1.0f, 1.0f, 0.0f, 1.0f // column 3
+    // Orthographic projection + zero water params (no wave animation for debug)
+    const SpriteUniforms debug_uniforms = {
+        .viewProjection = {
+            2.0f / (float)w, 0.0f, 0.0f, 0.0f,    // column 0
+            0.0f, -2.0f / (float)h, 0.0f, 0.0f,   // column 1
+            0.0f, 0.0f, 1.0f, 0.0f,               // column 2
+            -1.0f, 1.0f, 0.0f, 1.0f               // column 3
+        },
+        .waterParams = {0.0f, 0.0f, 0.0f, 0.0f}   // No water animation
     };
 
-    // Create a single sprite instance
+    // Create a single sprite instance (not water, no wave animation)
     const SpriteInstance instance = {
         .x = x,
         .y = y,
-        .z = 0.0f, // On top
-        .p1 = 0.0f,
+        .z = 0.0f,      // On top
+        .flags = 0.0f,  // Not water
         .w = width,
         .h = height,
-        .p2 = 0.0f,
-        .p3 = 0.0f,
+        .tile_x = 0.0f,
+        .tile_y = 0.0f,
         .u = 0.0f,
         .v = 0.0f,
-        .uw = 1.0f, // Full texture width
-        .vh = 1.0f // Full texture height
+        .uw = 1.0f,     // Full texture width
+        .vh = 1.0f      // Full texture height
     };
 
     // Upload instance data
@@ -1112,7 +1126,7 @@ void Renderer_DrawTextureDebug(SDL_GPUTexture *texture,
         1);
     SDL_BindGPUVertexStorageBuffers(render_pass, 0, &instance_buf, 1);
 
-    SDL_PushGPUVertexUniformData(cmd_buffer, 0, screen_proj, sizeof(screen_proj));
+    SDL_PushGPUVertexUniformData(cmd_buffer, 0, &debug_uniforms, sizeof(debug_uniforms));
 
     SDL_DrawGPUPrimitives(render_pass, 6, 1, 0, 0);
 

@@ -769,6 +769,8 @@ int mainLoop(void) {
         cam_get_view_projection_matrix(&main_camera_component->camera, view_proj);
         Renderer_SetViewProjection(view_proj);
 
+        // Set water animation parameters for shader
+        Renderer_SetWaterParams(game_clock.total, wave_speed, wave_amplitude, wave_phase);
 
         // Render tilemap (water animation handled by shader)
         PROF_start(PROFILER_RENDER_MAP);

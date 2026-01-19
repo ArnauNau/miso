@@ -4,10 +4,21 @@
 #include <SDL3/SDL.h>
 #include <SDL3_ttf/SDL_ttf.h>
 
+/**
+ * @brief Sprite instance data for GPU-batched rendering.
+ *
+ * Each instance represents one sprite in a batched draw call. The layout
+ * must match the shader's InstanceData struct exactly (48 bytes, 16-byte aligned).
+ *
+ * @note For water tiles, set flags to 1.0 and provide tile_x/tile_y for wave
+ *       phase calculation. The shader applies wave animation automatically.
+ */
 typedef struct {
-  float x, y, z, p1;
-  float w, h, p2, p3;
-  float u, v, uw, vh;
+  float x, y, z;        ///< World position (z used for depth sorting)
+  float flags;          ///< Tile flags: 1.0 = water (shader-animated), 0.0 = normal
+  float w, h;           ///< Sprite dimensions in world units
+  float tile_x, tile_y; ///< Tile grid position (used for wave phase offset)
+  float u, v, uw, vh;   ///< UV coordinates in texture atlas (u, v, width, height)
 } SpriteInstance;
 
 bool Renderer_Init(SDL_Window *window);
@@ -24,10 +35,48 @@ void Renderer_DestroyTexture(SDL_GPUTexture *texture);
 void Renderer_BeginFrame(void);
 void Renderer_EndFrame(void);
 
-// Update the camera/view projection
+/**
+ * @brief Set the view-projection matrix for world-space rendering.
+ *
+ * This matrix transforms world coordinates to clip space. It should combine
+ * the camera's view matrix and the projection matrix.
+ *
+ * @param viewProjMatrix Column-major 4x4 matrix (16 floats).
+ */
 void Renderer_SetViewProjection(const float *viewProjMatrix);
 
-// Draw a batch of sprites
+/**
+ * @brief Set water animation parameters for shader-based waves.
+ *
+ * These parameters control how water tiles (SpriteInstance.flags == 1.0)
+ * are animated in the vertex shader. Call this once per frame before
+ * rendering water tiles.
+ *
+ * The wave formula uses: sin(time * 2π * speed + (tile_x + tile_y) * phase) * amplitude
+ *
+ * @param time      Current game time in seconds (typically from game clock).
+ * @param speed     Wave cycle speed multiplier (1.0 = one cycle per second).
+ * @param amplitude Wave height as fraction of tile height (0.0-1.0 typical).
+ * @param phase     Phase offset multiplier for tile position (controls wave width).
+ *
+ * @see SpriteInstance for per-tile water flag.
+ * @see Tilemap_Render() which uses these parameters automatically.
+ */
+void Renderer_SetWaterParams(float time, float speed, float amplitude, float phase);
+
+/**
+ * @brief Draw a batch of sprites using GPU instancing.
+ *
+ * Renders multiple sprites in a single draw call for optimal performance.
+ * All sprites must use the same texture.
+ *
+ * @param texture   The texture atlas containing all sprite images.
+ * @param instances Array of sprite instance data.
+ * @param count     Number of sprites to draw.
+ *
+ * @pre Renderer_BeginFrame() has been called.
+ * @pre Renderer_SetViewProjection() has been called.
+ */
 void Renderer_DrawSprites(SDL_GPUTexture *texture,
                           const SpriteInstance *instances, int count);
 
