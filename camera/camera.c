@@ -79,7 +79,7 @@ void CAMERA_zoom_apply(ECSWorld *const world, const Entity entity, const float z
         SmoothZoom_Component *const existing_sz = ss_get(&world->smooth_zooms, entity);
         existing_sz->target_zoom = SDL_clamp(existing_sz->target_zoom + zoom_scale * zoom_direction, min_zoom, max_zoom);
         existing_sz->speed = SDL_clamp(speed, 1.0f, 50.0f);
-        SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Updated existing smooth zoom component for entity %d: target_zoom=%.2f, speed=%.4f", entity, existing_sz->target_zoom, existing_sz->speed);
+        // SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Updated existing smooth zoom component for entity %d: target_zoom=%.2f, speed=%.4f", entity, existing_sz->target_zoom, existing_sz->speed);
     }
 }
 

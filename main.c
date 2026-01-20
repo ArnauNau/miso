@@ -309,7 +309,7 @@ void render_buildings(const Tilemap *const map, const TransformComponent *const 
     const float start_y = offset_y;
 
     SpriteInstance *instances =
-            SDL_malloc(sizeof(SpriteInstance) * (b_count + 1)); // +1 for boat
+            SDL_malloc(sizeof(SpriteInstance) * (size_t)(b_count + 1));
     int instance_count = 0;
 
     const float tex_w = (float) (map->tileset->columns * map->tileset->tile_width);
@@ -329,8 +329,8 @@ void render_buildings(const Tilemap *const map, const TransformComponent *const 
         iso_x -= (float) (buildings[entity].width - 1) * 0.5f * iso_w;
 
         // UVs
-        const int col = rs[entity].tile_index % map->tileset->columns;
-        const int row = rs[entity].tile_index / map->tileset->columns;
+        const int col = rs[entity].tile_index % (int)map->tileset->columns;
+        const int row = rs[entity].tile_index / (int)map->tileset->columns;
         const float u = (float) (col * tile_w) / tex_w;
         const float v = (float) (row * tile_h) / tex_h;
         const float uw = (float) (bw * tile_w) / tex_w;
@@ -789,15 +789,19 @@ int mainLoop(void) {
 
         if (wireframe_mode) {
             PROF_start(PROFILER_RENDER_WIREFRAMES);
-            SDL_Vertex *combined = SDL_malloc(
-                sizeof(SDL_Vertex) * wireframe_meshes->vert_count * building_count);
-            ssize_t offset = 0;
+            // FIX: Calculate total vertex count across all meshes (they may differ)
+            size_t total_vert_count = 0;
+            for (int i = 0; i < building_count; i++) {
+                total_vert_count += wireframe_meshes[i].vert_count;
+            }
+            SDL_Vertex *combined = SDL_malloc(sizeof(SDL_Vertex) * total_vert_count);
+            size_t offset = 0;
             for (int i = 0; i < building_count; i++) {
                 SDL_memcpy(combined + offset, wireframe_meshes[i].verts,
                            sizeof(SDL_Vertex) * wireframe_meshes[i].vert_count);
                 offset += wireframe_meshes[i].vert_count;
             }
-            Renderer_DrawGeometry(combined, offset);
+            Renderer_DrawGeometry(combined, (int)offset);
             SDL_free(combined);
             PROF_stop(PROFILER_RENDER_WIREFRAMES);
         }

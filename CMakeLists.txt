@@ -40,6 +40,7 @@ set(NAU_SOURCES
     main.c
     profiler.c
     profiler.h
+    game_clock.h
     camera/camera.c
     camera/camera.h
     ecs/entity.c
@@ -89,6 +90,7 @@ if(NAU_PGO_GENERATE)
         message(FATAL_ERROR "NAU_PGO_GENERATE=ON requires NAU_PGO_PROFILE_DIR to be set")
     endif()
 
+    message(STATUS "PGO Generation enabled. Instrumented binary will write profiles to: ${NAU_PGO_PROFILE_DIR}")
     # LLVM PGO instrumentation (Clang)
     target_compile_options(NAU_Engine PRIVATE -fprofile-instr-generate)
     target_link_options(NAU_Engine PRIVATE -fprofile-instr-generate)
@@ -105,6 +107,8 @@ if(NOT NAU_PGO_USE_PROFDATA STREQUAL "")
     if(NOT EXISTS "${NAU_PGO_USE_PROFDATA}")
         message(FATAL_ERROR "NAU_PGO_USE_PROFDATA points to missing file: ${NAU_PGO_USE_PROFDATA}")
     endif()
+
+    message(STATUS "PGO Use enabled. Using profile data from: ${NAU_PGO_USE_PROFDATA}")
     target_compile_options(NAU_Engine PRIVATE -fprofile-instr-use=${NAU_PGO_USE_PROFDATA})
     target_link_options(NAU_Engine PRIVATE -fprofile-instr-use=${NAU_PGO_USE_PROFDATA})
 endif()
