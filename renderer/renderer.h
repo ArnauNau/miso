@@ -4,6 +4,11 @@
 #include <SDL3/SDL.h>
 #include <SDL3_ttf/SDL_ttf.h>
 
+//TODO: change way to get path, quick hack to be able to launch from different working directories
+#define RESOURCE_PATH_STRING(out, in) sprintf(out, "%s../../../../%s", SDL_GetBasePath(), in)
+
+const char *getResourcePath(char *string, const char *relative_path);
+
 /**
  * @brief Sprite instance data for GPU-batched rendering.
  *

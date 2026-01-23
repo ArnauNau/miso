@@ -450,7 +450,8 @@ int initialize(void) {
         SDL_Log("Warning: Failed to initialize debug UI");
     }
 
-    tileset = Tileset_Load("isometric-sheet.png", TILE_SIZE, TILE_SIZE);
+    char resource_path[512] = {0};
+    tileset = Tileset_Load(getResourcePath(resource_path, "isometric-sheet.png"), TILE_SIZE, TILE_SIZE);
     if (tileset == nullptr) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to load tileset");
         return false;
@@ -907,6 +908,7 @@ int mainLoop(void) {
 }
 
 int main(void) {
+    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "SDL Base Path: %s\n", SDL_GetBasePath());
 
     if (initialize() == false) {
         return 1;

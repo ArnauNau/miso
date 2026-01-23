@@ -3,6 +3,12 @@
 #include <SDL3_image/SDL_image.h>
 #include <SDL3/SDL_log.h>
 
+//TODO: remove from here
+const char *getResourcePath(char *const string, const char *const relative_path) {
+    RESOURCE_PATH_STRING(string, relative_path);
+    return string;
+}
+
 // Internal state
 static SDL_GPUDevice *gpu_device = nullptr;
 static SDL_Window *render_window = nullptr;
@@ -91,12 +97,12 @@ bool Renderer_Init(SDL_Window *window) {
     gpu_device = SDL_CreateGPUDevice(
         SDL_GPU_SHADERFORMAT_MSL | SDL_GPU_SHADERFORMAT_SPIRV, true, nullptr);
     if (!gpu_device) {
-        SDL_Log("Failed to create SDL_GPU device: %s", SDL_GetError());
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to create SDL_GPU device: %s", SDL_GetError());
         return false;
     }
 
     if (!SDL_ClaimWindowForGPUDevice(gpu_device, window)) {
-        SDL_Log("Failed to claim window for GPU device: %s", SDL_GetError());
+        SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to claim window for GPU device: %s", SDL_GetError());
         return false;
     }
 
@@ -104,23 +110,26 @@ bool Renderer_Init(SDL_Window *window) {
             SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
             SDL_GPU_PRESENTMODE_MAILBOX))
         {
-        SDL_Log("Failed to set swapchain parameters: %s", SDL_GetError());
-        SDL_Log("Retrying with GPU_PRESENTMODE_VSYNC...");
+        SDL_LogWarn(SDL_LOG_CATEGORY_GPU, "Failed to set swapchain parameters: %s", SDL_GetError());
+        SDL_LogWarn(SDL_LOG_CATEGORY_GPU, "Retrying with GPU_PRESENTMODE_VSYNC...");
         if (!SDL_SetGPUSwapchainParameters(gpu_device, window,
             SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
             SDL_GPU_PRESENTMODE_VSYNC))
             {
-            SDL_Log("Failed to set swapchain parameters: %s", SDL_GetError());
+            SDL_LogError(SDL_LOG_CATEGORY_GPU, "Failed to set swapchain parameters: %s", SDL_GetError());
             return false;
         }
     }
 
+    char shader_path[512];
+    getResourcePath(shader_path, "shaders/sprite.metal");
+
     // 2. Load Sprite Shaders
     SDL_GPUShader *vertex_shader =
-            LoadShader(gpu_device, "shaders/sprite.metal", "vertex_main",
+            LoadShader(gpu_device, shader_path, "vertex_main",
                        0, 1, 1, 0, SDL_GPU_SHADERSTAGE_VERTEX);
     SDL_GPUShader *fragment_shader =
-            LoadShader(gpu_device, "shaders/sprite.metal",
+            LoadShader(gpu_device, shader_path,
                        "fragment_main", 1, 0, 0, 0, SDL_GPU_SHADERSTAGE_FRAGMENT);
 
     if (!vertex_shader || !fragment_shader) {
@@ -208,12 +217,13 @@ bool Renderer_Init(SDL_Window *window) {
         return false;
     }
 
+    char rpath[512];
     // 8. Create UI Pipelines
     SDL_GPUShader *text_vs =
-            LoadShader(gpu_device, "shaders/ui.metal", "vertex_text", 0,
+            LoadShader(gpu_device, getResourcePath(rpath, "shaders/ui.metal"), "vertex_text", 0,
                        1, 0, 0, SDL_GPU_SHADERSTAGE_VERTEX);
     SDL_GPUShader *text_fs =
-            LoadShader(gpu_device, "shaders/ui.metal", "fragment_text", 1,
+            LoadShader(gpu_device,  getResourcePath(rpath, "shaders/ui.metal"), "fragment_text", 1,
                        1, 0, 0, SDL_GPU_SHADERSTAGE_FRAGMENT);
 
     if (text_vs && text_fs) {
@@ -263,10 +273,10 @@ bool Renderer_Init(SDL_Window *window) {
     }
 
     SDL_GPUShader *line_vs =
-            LoadShader(gpu_device, "shaders/ui.metal", "vertex_line", 0,
+            LoadShader(gpu_device,  getResourcePath(rpath, "shaders/ui.metal"), "vertex_line", 0,
                        1, 0, 0, SDL_GPU_SHADERSTAGE_VERTEX);
     SDL_GPUShader *line_fs =
-            LoadShader(gpu_device, "shaders/ui.metal", "fragment_line", 0,
+            LoadShader(gpu_device,  getResourcePath(rpath, "shaders/ui.metal"), "fragment_line", 0,
                        1, 0, 0, SDL_GPU_SHADERSTAGE_FRAGMENT);
 
     if (line_vs && line_fs) {
@@ -315,10 +325,10 @@ bool Renderer_Init(SDL_Window *window) {
     }
 
     SDL_GPUShader *geo_vs =
-            LoadShader(gpu_device, "shaders/geometry.metal",
+            LoadShader(gpu_device,  getResourcePath(rpath, "shaders/geometry.metal"),
                        "vertex_geometry", 0, 1, 0, 0, SDL_GPU_SHADERSTAGE_VERTEX);
     SDL_GPUShader *geo_fs =
-            LoadShader(gpu_device, "shaders/geometry.metal",
+            LoadShader(gpu_device,  getResourcePath(rpath, "shaders/geometry.metal"),
                        "fragment_geometry", 0, 0, 0, 0, SDL_GPU_SHADERSTAGE_FRAGMENT);
 
     if (geo_vs && geo_fs) {

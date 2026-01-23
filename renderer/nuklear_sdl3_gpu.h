@@ -22,6 +22,8 @@
 #ifndef NK_SDL3_GPU_H_
 #define NK_SDL3_GPU_H_
 
+#include "renderer.h"
+
 #include <SDL3/SDL.h>
 
 /* Nuklear must be included before this header */
@@ -272,10 +274,13 @@ nk_sdl_gpu_init(SDL_Window *win, SDL_GPUDevice *device)
     nk_buffer_init(&sdl->gpu.cmds, &sdl->allocator, NK_BUFFER_DEFAULT_INITIAL_SIZE);
 
     /* Load shaders */
-    SDL_GPUShader *vs = nk_sdl_gpu_load_shader(device, "shaders/nuklear.metal",
+    char shader_path[512] = {0};
+    getResourcePath(shader_path, "shaders/nuklear.metal");
+
+    SDL_GPUShader *vs = nk_sdl_gpu_load_shader(device, shader_path,
                                                 "vertex_nuklear", 0, 1,
                                                 SDL_GPU_SHADERSTAGE_VERTEX);
-    SDL_GPUShader *fs = nk_sdl_gpu_load_shader(device, "shaders/nuklear.metal",
+    SDL_GPUShader *fs = nk_sdl_gpu_load_shader(device, shader_path,
                                                 "fragment_nuklear", 1, 0,
                                                 SDL_GPU_SHADERSTAGE_FRAGMENT);
     if (!vs || !fs) {
