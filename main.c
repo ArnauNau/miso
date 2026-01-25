@@ -21,6 +21,8 @@
 #include "renderer/ui.h"
 #include "tilemap/tilemap.h"
 
+#include "logger.h"
+
 #define WINDOW_WIDTH 1920
 #define WINDOW_HEIGHT 1080
 static int screen_width = WINDOW_WIDTH;
@@ -336,8 +338,7 @@ void render_buildings(const Tilemap *const map, const TransformComponent *const 
         const float uw = (float) (bw * tile_w) / tex_w;
         const float vh = (float) (bh * tile_h) / tex_h;
 
-        // Depth: same logic as tiles but with small bias so buildings appear in front;
-        // invert so higher (mx+my) = lower depth = closer to camera
+        // Depth: same logic as tiles but with small bias so buildings appear in front
         const float depth =
                 1.0f - (float) (mx + my) / (float) (map->width + map->height) - 0.001f;
 
@@ -385,9 +386,15 @@ Entity main_camera;
 ECSWorld ecs;
 
 int initialize(void) {
-    SDL_SetLogPriority(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_VERBOSE);
+    SDL_SetLogPriorities(SDL_LOG_PRIORITY_VERBOSE);
     SDL_SetHint(SDL_HINT_RENDER_GPU_DEBUG, "1");
 
+    SDL_SetAppMetadata(
+        "NAU_Engine",
+        "0.1.0",
+        "me.rnau.nau_engine"
+    );
+    
     if (SDL_Init(SDL_INIT_VIDEO) == false) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_Init failed: %s\n", SDL_GetError());
         return false;
@@ -907,7 +914,39 @@ int mainLoop(void) {
     return 0;
 }
 
+void logLibraryVersions(void) {
+    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "SDL version: %d.%d.%d", SDL_VERSIONNUM_MAJOR(SDL_GetVersion()), SDL_VERSIONNUM_MINOR(SDL_GetVersion()), SDL_VERSIONNUM_MICRO(SDL_GetVersion()));
+    if (SDL_GetVersion() < SDL_VERSION) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "SDL version is older than the compiled version! Compiled: %d.%d.%d, Linked: %d.%d.%d\n",
+                    SDL_MAJOR_VERSION, SDL_MINOR_VERSION, SDL_MICRO_VERSION,
+                    SDL_VERSIONNUM_MAJOR(SDL_GetVersion()), SDL_VERSIONNUM_MINOR(SDL_GetVersion()), SDL_VERSIONNUM_MICRO(SDL_GetVersion())
+        );
+    }
+
+    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "SDL_image Version: %d.%d.%d\n", SDL_IMAGE_MAJOR_VERSION, SDL_IMAGE_MINOR_VERSION, SDL_IMAGE_MICRO_VERSION);
+    if (IMG_Version() < SDL_IMAGE_VERSION) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "SDL_image version is older than the compiled version! Compiled: %d.%d.%d, Linked: %d.%d.%d\n",
+                    SDL_IMAGE_MAJOR_VERSION, SDL_IMAGE_MINOR_VERSION, SDL_IMAGE_MICRO_VERSION,
+                    SDL_VERSIONNUM_MAJOR(IMG_Version()), SDL_VERSIONNUM_MINOR(IMG_Version()), SDL_VERSIONNUM_MICRO(IMG_Version())
+        );
+    }
+
+    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "SDL_ttf Version: %d.%d.%d\n", SDL_TTF_MAJOR_VERSION, SDL_TTF_MINOR_VERSION, SDL_TTF_MICRO_VERSION);
+    if (TTF_Version() < SDL_TTF_VERSION) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "SDL_ttf version is older than the compiled version! Compiled: %d.%d.%d, Linked: %d.%d.%d\n",
+                    SDL_TTF_MAJOR_VERSION, SDL_TTF_MINOR_VERSION, SDL_TTF_MICRO_VERSION,
+                    SDL_VERSIONNUM_MAJOR(TTF_Version()), SDL_VERSIONNUM_MINOR(TTF_Version()), SDL_VERSIONNUM_MICRO(TTF_Version())
+        );
+    }
+
+}
+
 int main(void) {
+
+    LOG_init();
+
+    logLibraryVersions();
+
     SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "SDL Base Path: %s\n", SDL_GetBasePath());
 
     if (initialize() == false) {

@@ -59,6 +59,7 @@ set(NAU_SOURCES
     tilemap/tilemap.h
     debug_ui.c
     debug_ui.h
+        logger.h
 )
 
 # Define executable
