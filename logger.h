@@ -2,8 +2,8 @@
 // Created by Arnau Sanz on 30/1/26.
 //
 
-#ifndef NAU_ENGINE_LOGGER_H
-#define NAU_ENGINE_LOGGER_H
+#ifndef MISO_LOGGER_H
+#define MISO_LOGGER_H
 
 #include "SDL3/SDL_log.h"
 #include <stddef.h>
@@ -67,4 +67,4 @@ void LOG_init() {
     SDL_SetLogOutputFunction(MyLogOutput, NULL);
 }
 
-#endif // NAU_ENGINE_LOGGER_H
+#endif // MISO_LOGGER_H

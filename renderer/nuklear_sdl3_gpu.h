@@ -1,7 +1,7 @@
 /* nuklear_sdl3_gpu.h - SDL3 GPU backend for Nuklear
  *
  * This backend uses SDL3's GPU API (Metal/Vulkan/D3D12) for rendering.
- * Designed for NAU Engine but structured for potential future extraction.
+ * Designed for miso but structured for potential future extraction.
  *
  * Usage:
  *   // First include nuklear with your configuration

@@ -2,8 +2,8 @@
 // Created by Arnau Sanz on 16/8/25.
 //
 
-#ifndef NAU_ENGINE_ECS_H
-#define NAU_ENGINE_ECS_H
+#ifndef MISO_ECS_H
+#define MISO_ECS_H
 #include "sparse_set.h"
 
 typedef struct ECSWorld_ {
@@ -17,4 +17,4 @@ void ECS_destroy(const ECSWorld *world);
 Entity ECS_create_entity(ECSWorld *world);
 
 
-#endif //NAU_ENGINE_ECS_H
+#endif //MISO_ECS_H

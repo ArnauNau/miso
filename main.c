@@ -390,9 +390,9 @@ int initialize(void) {
     SDL_SetHint(SDL_HINT_RENDER_GPU_DEBUG, "1");
 
     SDL_SetAppMetadata(
-        "NAU_Engine",
+        "miso",
         "0.1.0",
-        "me.rnau.nau_engine"
+        "dev.rnau.miso"
     );
     
     if (SDL_Init(SDL_INIT_VIDEO) == false) {
@@ -406,7 +406,7 @@ int initialize(void) {
 
     /* On Apple's macOS, **must** set the NSHighResolutionCapable Info. plist
      * property to YES, otherwise you will not receive a High-DPI OpenGL canvas.*/
-    window = SDL_CreateWindow("NAU Engine", WINDOW_WIDTH, WINDOW_HEIGHT,
+    window = SDL_CreateWindow("miso", WINDOW_WIDTH, WINDOW_HEIGHT,
                              SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_RESIZABLE);
     if (!window) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_CreateWindow failed: %s\n", SDL_GetError());

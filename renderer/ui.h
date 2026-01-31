@@ -2,8 +2,8 @@
 // Created by Arnau Sanz on 1/12/25.
 //
 
-#ifndef NAU_ENGINE_UI_H
-#define NAU_ENGINE_UI_H
+#ifndef MISO_UI_H
+#define MISO_UI_H
 
 #define UI_COLOR_BACKGROUND_DEFAULT (SDL_FColor){0.0f, 0.0f, 0.0f, 0.6f}
 
@@ -72,4 +72,4 @@ typedef struct {
 
 UIBatchStats UI_GetStats(void);
 
-#endif // NAU_ENGINE_UI_H
+#endif // MISO_UI_H

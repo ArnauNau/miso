@@ -2,8 +2,8 @@
 // Created by Arnau Sanz on 16/8/25.
 //
 
-#ifndef NAU_ENGINE_CAMERA_H
-#define NAU_ENGINE_CAMERA_H
+#ifndef MISO_CAMERA_H
+#define MISO_CAMERA_H
 
 #include "../ecs/ecs.h"
 #include "../ecs/entity.h"
@@ -135,4 +135,4 @@ static inline void cam_get_view_projection_matrix(const Camera2D *const c,
     out_matrix[15] = 1.0f;
 }
 
-#endif // NAU_ENGINE_CAMERA_H
+#endif // MISO_CAMERA_H

@@ -2,8 +2,8 @@
 // Created by Arnau Sanz on 16/8/25.
 //
 
-#ifndef NAU_ENGINE_SPARSE_SET_H
-#define NAU_ENGINE_SPARSE_SET_H
+#ifndef MISO_SPARSE_SET_H
+#define MISO_SPARSE_SET_H
 
 #include <stdint.h>
 #include <SDL3/SDL.h>
@@ -28,4 +28,4 @@ Entity ss_get_entity(const SparseSet *set, uint16_t index);
 
 
 
-#endif //NAU_ENGINE_SPARSE_SET_H
+#endif //MISO_SPARSE_SET_H
