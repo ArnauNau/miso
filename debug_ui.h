@@ -25,7 +25,7 @@ void DebugUI_BeginInput(void);
 void DebugUI_EndInput(void);
 
 // Get Nuklear context for defining UI
-struct nk_context* DebugUI_GetContext(void);
+struct nk_context *DebugUI_GetContext(void);
 
 // Get the UI scale factor (pixel density)
 float DebugUI_GetScale(void);

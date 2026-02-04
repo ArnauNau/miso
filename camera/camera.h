@@ -7,20 +7,21 @@
 
 #include "../ecs/ecs.h"
 #include "../ecs/entity.h"
+
 #include <SDL3/SDL.h>
 
 /* Camera constants */
 #define CAMERA_MIN_ZOOM 0.5f
 #define CAMERA_MAX_ZOOM 5.0f
-#define CAMERA_PAN_SPEED 500.0f  // world units per second at zoom=1
+#define CAMERA_PAN_SPEED 500.0f // world units per second at zoom=1
 
 typedef struct Camera2D_ {
     SDL_FPoint position; // camera position in world coordinates (screen center)
     // //TODO: change to PositionComponent or
     // TransformComponent or something
-    float zoom; // camera zoom level
+    float zoom;        // camera zoom level
     SDL_Rect viewport; // camera viewport in screen coordinates
-    bool pixel_snap; // snap to integers to avoid blurry lines (subpixel rendering
+    bool pixel_snap;   // snap to integers to avoid blurry lines (subpixel rendering
     // issues)
 } Camera2D;
 
@@ -31,17 +32,15 @@ typedef struct Camera2D_Component_ {
 
 typedef struct SmoothZoom_Component_ {
     float target_zoom; // target zoom level
-    float speed; // speed at which the camera zooms in/out
+    float speed;       // speed at which the camera zooms in/out
 } SmoothZoom_Component;
 
 /* COMPONENTS */
 void CAMERA_add(ECSWorld *world, Entity entity, Camera2D camera);
 
-void CAMERA_zoom_apply(ECSWorld *world, Entity entity, float zoom_direction,
-                       float speed);
+void CAMERA_zoom_apply(ECSWorld *world, Entity entity, float zoom_direction, float speed);
 
-void CAMERA_zoom_set(Camera2D_Component *camera, float zoom,
-                     SDL_FPoint mouse_position);
+void CAMERA_zoom_set(Camera2D_Component *camera, float zoom, SDL_FPoint mouse_position);
 
 /* MOVEMENT */
 // Pan the camera by (dx, dy) direction. Movement speed is inversely proportional
@@ -53,36 +52,32 @@ void CAMERA_pan(Camera2D *camera, float dx, float dy, float dt);
 void CAMERA_drag(Camera2D *camera, float xrel, float yrel, float pixel_ratio);
 
 /* SYSTEMS */
-void CAMERA_smooth_zoom_system(ECSWorld *world, float dt,
-                               SDL_FPoint mouse_position);
+void CAMERA_smooth_zoom_system(ECSWorld *world, float dt, SDL_FPoint mouse_position);
 
 /*      UTILITIES       */
 // NOTE: ISOMETRIC WORLD!!! North orientation is up, West is left, South is down, East is right.
-static inline SDL_FPoint cam_world_to_screen(const Camera2D *const c,
-                                             const float wx, const float wy) {
-    const float cx = (float) c->viewport.x + (float) c->viewport.w * 0.5f;
-    const float cy = (float) c->viewport.y + (float) c->viewport.h * 0.5f;
+static inline SDL_FPoint cam_world_to_screen(const Camera2D *const c, const float wx, const float wy) {
+    const float cx = (float)c->viewport.x + (float)c->viewport.w * 0.5f;
+    const float cy = (float)c->viewport.y + (float)c->viewport.h * 0.5f;
     const float sx = (wx - c->position.x) * c->zoom + cx;
     const float sy = (wy - c->position.y) * c->zoom + cy;
     return (SDL_FPoint){sx, sy};
 }
 
-static inline SDL_FPoint cam_screen_to_world(const Camera2D *const c,
-                                             const float sx, const float sy) {
-    const float cx = (float) c->viewport.x + (float) c->viewport.w * 0.5f;
-    const float cy = (float) c->viewport.y + (float) c->viewport.h * 0.5f;
+static inline SDL_FPoint cam_screen_to_world(const Camera2D *const c, const float sx, const float sy) {
+    const float cx = (float)c->viewport.x + (float)c->viewport.w * 0.5f;
+    const float cy = (float)c->viewport.y + (float)c->viewport.h * 0.5f;
     const float wx = (sx - cx) / c->zoom + c->position.x;
     const float wy = (sy - cy) / c->zoom + c->position.y;
     return (SDL_FPoint){wx, wy};
 }
 
-static inline void cam_get_render_params(const Camera2D *const c,
-                                         float *const scale, float *const offx,
-                                         float *const offy) {
+static inline void
+cam_get_render_params(const Camera2D *const c, float *const scale, float *const offx, float *const offy) {
     *scale = c->zoom;
     // offsets are the "pre-scale" logical translation
-    const float cx = (float) c->viewport.w * 0.5f;
-    const float cy = (float) c->viewport.h * 0.5f;
+    const float cx = (float)c->viewport.w * 0.5f;
+    const float cy = (float)c->viewport.h * 0.5f;
     *offx = (cx / c->zoom) - c->position.x;
     *offy = (cy / c->zoom) - c->position.y;
     if (c->pixel_snap) {
@@ -94,13 +89,12 @@ static inline void cam_get_render_params(const Camera2D *const c,
 // Build a column-major 4x4 view-projection matrix for GPU rendering
 // Combines orthographic projection with camera transform (pan + zoom)
 // Coordinate system: (0,0) = top-left of viewport, Y increases downward
-static inline void cam_get_view_projection_matrix(const Camera2D *const c,
-                                                  float out_matrix[16]) {
+static inline void cam_get_view_projection_matrix(const Camera2D *const c, float out_matrix[16]) {
     float scale, offx, offy;
     cam_get_render_params(c, &scale, &offx, &offy);
 
-    const float w = (float) c->viewport.w;
-    const float h = (float) c->viewport.h;
+    const float w = (float)c->viewport.w;
+    const float h = (float)c->viewport.h;
 
     // Combined view-projection matrix (column-major for Metal/GL)
     // Ortho projection with Y-flip (screen-space: Y down)

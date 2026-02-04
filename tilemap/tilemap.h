@@ -17,9 +17,6 @@
 
 #include <SDL3/SDL.h>
 
-// Forward declaration - actual type from renderer
-typedef struct SDL_GPUTexture SDL_GPUTexture;
-
 // =============================================================================
 // Tileset - GPU texture + tile metadata
 // =============================================================================
@@ -31,12 +28,12 @@ typedef struct SDL_GPUTexture SDL_GPUTexture;
  * left-to-right, top-to-bottom starting from 0.
  */
 typedef struct Tileset {
-    SDL_GPUTexture *texture;    ///< GPU texture handle (owned)
-    unsigned int tile_width;    ///< Width of each tile in pixels
-    unsigned int tile_height;   ///< Height of each tile in pixels
-    unsigned int columns;       ///< Number of columns in the tileset image
-    unsigned int rows;          ///< Number of rows in the tileset image
-    unsigned int total_tiles;   ///< Total number of tiles (columns * rows)
+    SDL_GPUTexture *texture;  ///< GPU texture handle (owned)
+    unsigned int tile_width;  ///< Width of each tile in pixels
+    unsigned int tile_height; ///< Height of each tile in pixels
+    unsigned int columns;     ///< Number of columns in the tileset image
+    unsigned int rows;        ///< Number of rows in the tileset image
+    unsigned int total_tiles; ///< Total number of tiles (columns * rows)
 } Tileset;
 
 /**
@@ -71,9 +68,9 @@ void Tileset_Destroy(Tileset *tileset);
  * flags per tile. Use bitwise OR to combine flags.
  */
 typedef enum TileFlags {
-    TILE_FLAG_NONE    = 0,        ///< No special behavior
-    TILE_FLAG_WATER   = 1 << 0,   ///< Tile is water (animated by GPU shader)
-    TILE_FLAG_BLOCKED = 1 << 1,   ///< Tile blocks movement/placement
+    TILE_FLAG_NONE = 0,         ///< No special behavior
+    TILE_FLAG_WATER = 1 << 0,   ///< Tile is water (animated by GPU shader)
+    TILE_FLAG_BLOCKED = 1 << 1, ///< Tile blocks movement/placement
 } TileFlags;
 
 /**
@@ -84,12 +81,12 @@ typedef enum TileFlags {
  * [width * height] and indexed as [y * width + x].
  */
 typedef struct Tilemap {
-    int *tiles;                 ///< Tile indices [width * height] (owned)
-    uint8_t *flags;             ///< Per-tile flags [width * height] (owned)
-    bool *occupied;             ///< Building occupancy [width * height] (owned)
-    int width;                  ///< Map width in tiles
-    int height;                 ///< Map height in tiles
-    Tileset *tileset;           ///< Reference to the tileset (not owned)
+    int *tiles;       ///< Tile indices [width * height] (owned)
+    uint8_t *flags;   ///< Per-tile flags [width * height] (owned)
+    bool *occupied;   ///< Building occupancy [width * height] (owned)
+    int width;        ///< Map width in tiles
+    int height;       ///< Map height in tiles
+    Tileset *tileset; ///< Reference to the tileset (not owned)
 } Tilemap;
 
 /**
@@ -226,8 +223,7 @@ void Tilemap_Render(const Tilemap *tilemap);
  * @param iso_width  Output: isometric tile width (same as sprite width).
  * @param iso_height Output: isometric tile height (sprite height / 2).
  */
-static inline void Tileset_GetIsoDimensions(const Tileset *tileset,
-                                             float *iso_width, float *iso_height) {
+static inline void Tileset_GetIsoDimensions(const Tileset *const tileset, float *const iso_width, float *const iso_height) {
     *iso_width = (float)tileset->tile_width;
     *iso_height = (float)tileset->tile_height / 2.0f;
 }
@@ -244,8 +240,7 @@ static inline void Tileset_GetIsoDimensions(const Tileset *tileset,
  * @param world_x Output: world X position.
  * @param world_y Output: world Y position.
  */
-static inline void Tilemap_TileToWorld(const Tilemap *tilemap, int tile_x, int tile_y,
-                                        float *world_x, float *world_y) {
+static inline void Tilemap_TileToWorld(const Tilemap *const tilemap, const int tile_x, const int tile_y, float *const world_x, float *const world_y) {
     const float iso_w = (float)tilemap->tileset->tile_width;
     const float iso_h = (float)tilemap->tileset->tile_height / 2.0f;
     const float start_x = ((float)(tilemap->height - 1) * iso_w) / 2.0f;
@@ -265,7 +260,7 @@ static inline void Tilemap_TileToWorld(const Tilemap *tilemap, int tile_x, int t
  * @param tile_y  Tile Y coordinate.
  * @return Depth value in range [0, 1], where 0 is closest to camera.
  */
-static inline float Tilemap_GetTileDepth(const Tilemap *tilemap, int tile_x, int tile_y) {
+static inline float Tilemap_GetTileDepth(const Tilemap *tilemap, const int tile_x, const int tile_y) {
     return 1.0f - (float)(tile_x + tile_y) / (float)(tilemap->width + tilemap->height);
 }
 

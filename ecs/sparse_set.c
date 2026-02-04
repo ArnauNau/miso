@@ -31,7 +31,7 @@ void ss_add(SparseSet *const set, const Entity e, const void *const component) {
             set->dense_entities = SDL_realloc(set->dense_entities, sizeof(Entity) * set->capacity);
         }
         SDL_memcpy((char *)set->dense + set->size * set->component_size, component, set->component_size);
-        set->dense_entities[set->size] = e;  //track which entity owns this slot
+        set->dense_entities[set->size] = e; //track which entity owns this slot
         set->sparse[e] = set->size;
         set->size++;
     }
@@ -46,8 +46,8 @@ void ss_remove(SparseSet *const set, const Entity e) {
         if (removed_index != last_index) {
             //swap last component into removed slot
             SDL_memcpy((char *)set->dense + removed_index * set->component_size,
-                   (char *)set->dense + last_index * set->component_size,
-                   set->component_size);
+                       (char *)set->dense + last_index * set->component_size,
+                       set->component_size);
 
             const Entity moved_entity = set->dense_entities[last_index];
             set->sparse[moved_entity] = removed_index;
@@ -70,5 +70,5 @@ void *ss_get(const SparseSet *const set, const Entity e) {
 
 Entity ss_get_entity(const SparseSet *const set, const Entity index) {
     SDL_assert(index < set->size && "Index out of bounds");
-    return set->dense_entities[index];  // O(1) lookup via parallel array
+    return set->dense_entities[index]; // O(1) lookup via parallel array
 }

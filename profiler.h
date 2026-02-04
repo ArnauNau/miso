@@ -22,14 +22,13 @@ typedef enum ProfilerSampleCategory {
     PROFILER_CATEGORY_COUNT //enum counter
 } ProfilerSampleCategory;
 
-
 typedef struct ProfilerSample {
     Uint64 start_time;
     float duration_ms;
 } ProfilerSample;
 
-#define unlikely(x)       __builtin_expect(!!(x), 0)
-#define likely(x)         __builtin_expect(!!(x), 1)
+#define unlikely(x) __builtin_expect(!!(x), 0)
+#define likely(x) __builtin_expect(!!(x), 1)
 /**
  * Must be called ONCE per frame loop, BEFORE any/all PROF_start() calls, ideally at the beginning of the frame loop, or right after the PROF_frameEnd() call.
  * It starts counting the total frame time for the frame sample.
@@ -58,6 +57,11 @@ void PROF_start(ProfilerSampleCategory category);
  */
 void PROF_stop(ProfilerSampleCategory category);
 
+/**
+ * Set a measured duration for a category (in milliseconds) for the current frame sample.
+ * Useful when timing comes from an external subsystem.
+ */
+void PROF_setDuration(ProfilerSampleCategory category, float duration_ms);
 
 /**
  * Calculates the total time in milliseconds for the current frame sample.

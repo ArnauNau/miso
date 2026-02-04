@@ -1,26 +1,24 @@
 #include "tilemap.h"
+
 #include "../renderer/renderer.h"
+
 #include <SDL3_image/SDL_image.h>
 
 // =============================================================================
 // Tileset Implementation
 // =============================================================================
 
-Tileset *Tileset_Load(const char *const image_path,
-                      const unsigned int tile_width,
-                      const unsigned int tile_height) {
+Tileset *Tileset_Load(const char *const image_path, const unsigned int tile_width, const unsigned int tile_height) {
     Tileset *const tileset = SDL_malloc(sizeof(Tileset));
     if (!tileset) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                     "Failed to allocate memory for tileset");
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to allocate memory for tileset");
         return nullptr;
     }
 
     // Load texture via renderer
     tileset->texture = Renderer_LoadTexture(image_path);
     if (!tileset->texture) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                     "Failed to create texture from %s", image_path);
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create texture from %s", image_path);
         SDL_free(tileset);
         return nullptr;
     }
@@ -32,8 +30,7 @@ Tileset *Tileset_Load(const char *const image_path,
         tileset->rows = (unsigned int)surface->h / tile_height;
         SDL_DestroySurface(surface);
     } else {
-        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
-                    "Could not load image for dimensions: %s", image_path);
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Could not load image for dimensions: %s", image_path);
         tileset->columns = 0;
         tileset->rows = 0;
     }
@@ -43,7 +40,10 @@ Tileset *Tileset_Load(const char *const image_path,
     tileset->total_tiles = tileset->columns * tileset->rows;
 
     SDL_Log("Loaded tileset: %ux%u tiles, %u columns, %u rows, %u total tiles",
-            tile_width, tile_height, tileset->columns, tileset->rows,
+            tile_width,
+            tile_height,
+            tileset->columns,
+            tileset->rows,
             tileset->total_tiles);
 
     return tileset;
@@ -64,15 +64,13 @@ void Tileset_Destroy(Tileset *const tileset) {
 
 Tilemap *Tilemap_Create(const int width, const int height, Tileset *const tileset) {
     if (width <= 0 || height <= 0) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                     "Invalid tilemap dimensions: %dx%d", width, height);
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Invalid tilemap dimensions: %dx%d", width, height);
         return nullptr;
     }
 
     Tilemap *const tilemap = SDL_malloc(sizeof(Tilemap));
     if (!tilemap) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                     "Failed to allocate memory for tilemap");
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to allocate memory for tilemap");
         return nullptr;
     }
 
@@ -80,16 +78,14 @@ Tilemap *Tilemap_Create(const int width, const int height, Tileset *const tilese
 
     tilemap->tiles = SDL_malloc(tile_count * sizeof(int));
     if (!tilemap->tiles) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                     "Failed to allocate memory for tilemap tiles");
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to allocate memory for tilemap tiles");
         SDL_free(tilemap);
         return nullptr;
     }
 
     tilemap->flags = SDL_malloc(tile_count * sizeof(uint8_t));
     if (!tilemap->flags) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                     "Failed to allocate memory for tilemap flags");
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to allocate memory for tilemap flags");
         SDL_free(tilemap->tiles);
         SDL_free(tilemap);
         return nullptr;
@@ -97,8 +93,7 @@ Tilemap *Tilemap_Create(const int width, const int height, Tileset *const tilese
 
     tilemap->occupied = SDL_malloc(tile_count * sizeof(bool));
     if (!tilemap->occupied) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                     "Failed to allocate memory for tilemap occupancy");
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to allocate memory for tilemap occupancy");
         SDL_free(tilemap->flags);
         SDL_free(tilemap->tiles);
         SDL_free(tilemap);
@@ -142,8 +137,7 @@ int Tilemap_GetTile(const Tilemap *const tilemap, const int x, const int y) {
     return tilemap->tiles[y * tilemap->width + x];
 }
 
-void Tilemap_SetTile(Tilemap *const tilemap, const int x, const int y,
-                     const int tile_index) {
+void Tilemap_SetTile(Tilemap *const tilemap, const int x, const int y, const int tile_index) {
     if (tilemap_in_bounds(tilemap, x, y)) {
         tilemap->tiles[y * tilemap->width + x] = tile_index;
     }
@@ -156,8 +150,7 @@ TileFlags Tilemap_GetFlags(const Tilemap *const tilemap, const int x, const int 
     return (TileFlags)tilemap->flags[y * tilemap->width + x];
 }
 
-void Tilemap_SetFlags(Tilemap *const tilemap, const int x, const int y,
-                      const TileFlags flags) {
+void Tilemap_SetFlags(Tilemap *const tilemap, const int x, const int y, const TileFlags flags) {
     if (tilemap_in_bounds(tilemap, x, y)) {
         tilemap->flags[y * tilemap->width + x] = (uint8_t)flags;
     }
@@ -170,8 +163,7 @@ bool Tilemap_IsTileFree(const Tilemap *const tilemap, const int x, const int y) 
     return !tilemap->occupied[y * tilemap->width + x];
 }
 
-void Tilemap_SetOccupied(Tilemap *const tilemap, const int x, const int y,
-                         const bool occupied) {
+void Tilemap_SetOccupied(Tilemap *const tilemap, const int x, const int y, const bool occupied) {
     if (tilemap_in_bounds(tilemap, x, y)) {
         tilemap->occupied[y * tilemap->width + x] = occupied;
     }
@@ -181,8 +173,7 @@ void Tilemap_SetOccupied(Tilemap *const tilemap, const int x, const int y,
 // Coordinate Conversion
 // =============================================================================
 
-SDL_Point Tilemap_ScreenToTile(const Tilemap *const tilemap,
-                                const float screen_x, const float screen_y) {
+SDL_Point Tilemap_ScreenToTile(const Tilemap *const tilemap, const float screen_x, const float screen_y) {
     const float tile_w = (float)tilemap->tileset->tile_width;
     const float tile_h = (float)tilemap->tileset->tile_height;
 
@@ -208,10 +199,7 @@ SDL_Point Tilemap_ScreenToTile(const Tilemap *const tilemap,
     const float cart_x = (term_a + term_b) / 2.0f;
     const float cart_y = (term_b - term_a) / 2.0f;
 
-    return (SDL_Point){
-        .x = (int)SDL_floorf(cart_x),
-        .y = (int)SDL_floorf(cart_y)
-    };
+    return (SDL_Point){.x = (int)SDL_floorf(cart_x), .y = (int)SDL_floorf(cart_y)};
 }
 
 // =============================================================================
@@ -253,7 +241,7 @@ void Tilemap_Render(const Tilemap *const tilemap) {
             const int tile_index = tilemap->tiles[idx];
 
             if (tile_index < 0) {
-                continue;  // Skip empty tiles
+                continue; // Skip empty tiles
             }
 
             // Calculate isometric position
@@ -277,20 +265,19 @@ void Tilemap_Render(const Tilemap *const tilemap) {
 
             // Tile position for wave phase calculation (passed as extra data)
             // We pack tile_x and tile_y into the unused padding fields
-            instances[instance_count++] = (SpriteInstance){
-                .x = iso_x,
-                .y = iso_y,
-                .z = depth,
-                .flags = is_water,  // flags field: 1.0 = water, 0.0 = not water
-                .w = tile_w,
-                .h = tile_h,
-                .tile_x = (float)x,  // for wave phase calculation
-                .tile_y = (float)y,  // for wave phase calculation
-                .u = u,
-                .v = v,
-                .uw = uw,
-                .vh = vh
-            };
+            instances[instance_count++] =
+                (SpriteInstance){.x = iso_x,
+                                 .y = iso_y,
+                                 .z = depth,
+                                 .flags = is_water, // flags field: 1.0 = water, 0.0 = not water
+                                 .w = tile_w,
+                                 .h = tile_h,
+                                 .tile_x = (float)x, // for wave phase calculation
+                                 .tile_y = (float)y, // for wave phase calculation
+                                 .u = u,
+                                 .v = v,
+                                 .uw = uw,
+                                 .vh = vh};
         }
     }
 

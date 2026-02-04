@@ -15,16 +15,17 @@
 // SDL_GPU backend
 #define NK_SDL3_GPU_IMPLEMENTATION
 #include "renderer/nuklear_sdl3_gpu.h"
-
 #include "renderer/renderer_internal.h"
+
 #include <SDL3/SDL_log.h>
 
-static struct nk_context *nk_ctx = NULL;
+static struct nk_context *nk_ctx = nullptr;
 static bool initialized = false;
 static float ui_scale = 1.0f;
 
-bool DebugUI_Init(const char *font_path, float font_size) {
-    if (initialized) return true;
+bool DebugUI_Init(const char *const font_path, const float font_size) {
+    if (initialized)
+        return true;
 
     SDL_GPUDevice *device = Renderer_GetDevice();
     SDL_Window *window = Renderer_GetWindow();
@@ -42,13 +43,13 @@ bool DebugUI_Init(const char *font_path, float font_size) {
 
     // Scale font and UI by pixel density for HDPI displays
     ui_scale = SDL_GetWindowPixelDensity(window);
-    float scaled_font_size = font_size * ui_scale;
+    const float scaled_font_size = font_size * ui_scale;
 
     // Load font
-    struct nk_font_atlas *atlas = nk_sdl_gpu_font_stash_begin(nk_ctx);
+    struct nk_font_atlas *const atlas = nk_sdl_gpu_font_stash_begin(nk_ctx);
 
     // Load TTF font file at scaled size
-    struct nk_font *font = nk_font_atlas_add_from_file(atlas, font_path, scaled_font_size, NULL);
+    struct nk_font *const font = nk_font_atlas_add_from_file(atlas, font_path, scaled_font_size, nullptr);
     if (!font) {
         SDL_Log("DebugUI: Failed to load font from %s, using default", font_path);
     }
@@ -98,34 +99,41 @@ bool DebugUI_Init(const char *font_path, float font_size) {
 
     initialized = true;
     SDL_Log("DebugUI: Initialized with font %s at size %.0f (scaled: %.0f, density: %.1f)",
-            font_path, font_size, scaled_font_size, ui_scale);
+            font_path,
+            font_size,
+            scaled_font_size,
+            ui_scale);
     return true;
 }
 
 void DebugUI_Shutdown(void) {
-    if (!initialized) return;
+    if (!initialized)
+        return;
 
     nk_sdl_gpu_shutdown(nk_ctx);
-    nk_ctx = NULL;
+    nk_ctx = nullptr;
     initialized = false;
 }
 
 void DebugUI_BeginInput(void) {
-    if (!initialized) return;
+    if (!initialized)
+        return;
     nk_input_begin(nk_ctx);
 }
 
 void DebugUI_EndInput(void) {
-    if (!initialized) return;
+    if (!initialized)
+        return;
     nk_input_end(nk_ctx);
 }
 
-bool DebugUI_HandleEvent(SDL_Event *evt) {
-    if (!initialized) return false;
+bool DebugUI_HandleEvent(SDL_Event *const evt) {
+    if (!initialized)
+        return false;
     return nk_sdl_gpu_handle_event(nk_ctx, evt) != 0;
 }
 
-struct nk_context* DebugUI_GetContext(void) {
+struct nk_context *DebugUI_GetContext(void) {
     return nk_ctx;
 }
 
@@ -134,10 +142,11 @@ float DebugUI_GetScale(void) {
 }
 
 void DebugUI_Render(void) {
-    if (!initialized || !nk_ctx) return;
+    if (!initialized || !nk_ctx)
+        return;
 
-    SDL_GPUCommandBuffer *cmd = Renderer_GetCommandBuffer();
-    SDL_GPUTexture *swapchain = Renderer_GetSwapchainTexture();
+    SDL_GPUCommandBuffer *const cmd = Renderer_GetCommandBuffer();
+    SDL_GPUTexture *const swapchain = Renderer_GetSwapchainTexture();
 
     if (!cmd || !swapchain) {
         // Still need to clear Nuklear state even if we can't render
