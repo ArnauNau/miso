@@ -36,8 +36,7 @@ void UI_Shutdown(void);
 // ============================================================================
 // Text with background - draws semi-transparent rect behind text
 void UI_TextWithBackground(TTF_Text *text, float x, float y);
-void UI_TextWithBackgroundEx(TTF_Text *text, float x, float y,
-                             SDL_FColor bg_color, float padding);
+void UI_TextWithBackgroundEx(TTF_Text *text, float x, float y, SDL_FColor bg_color, float padding);
 
 // Text rendering
 void UI_Text(TTF_Text *text, float x, float y);
@@ -45,12 +44,10 @@ void UI_TextColored(TTF_Text *text, float x, float y, SDL_FColor color);
 
 // Rectangles
 void UI_FillRect(float x, float y, float w, float h, SDL_FColor color);
-void UI_RectOutline(float x, float y, float w, float h, SDL_FColor color,
-                    float thickness);
+void UI_RectOutline(float x, float y, float w, float h, SDL_FColor color, float thickness);
 
 // Lines
-void UI_Line(float x1, float y1, float x2, float y2, SDL_FColor color,
-             float thickness);
+void UI_Line(float x1, float y1, float x2, float y2, SDL_FColor color, float thickness);
 
 // ============================================================================
 // Flush API - Execute all queued commands
@@ -62,12 +59,12 @@ void UI_Flush(void);
 
 // Get statistics for debugging/profiling
 typedef struct {
-  int geometry_vertices;
-  int geometry_draw_calls;
-  int text_vertices;
-  int text_indices;
-  int text_atlas_count;
-  int text_draw_calls;
+    int geometry_vertices;
+    int geometry_draw_calls;
+    int text_vertices;
+    int text_indices;
+    int text_atlas_count;
+    int text_draw_calls;
 } UIBatchStats;
 
 UIBatchStats UI_GetStats(void);

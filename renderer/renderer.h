@@ -19,11 +19,11 @@ const char *getResourcePath(char *string, const char *relative_path);
  *       phase calculation. The shader applies wave animation automatically.
  */
 typedef struct {
-  float x, y, z;        ///< World position (z used for depth sorting)
-  float flags;          ///< Tile flags: 1.0 = water (shader-animated), 0.0 = normal
-  float w, h;           ///< Sprite dimensions in world units
-  float tile_x, tile_y; ///< Tile grid position (used for wave phase offset)
-  float u, v, uw, vh;   ///< UV coordinates in texture atlas (u, v, width, height)
+    float x, y, z;        ///< World position (z used for depth sorting)
+    float flags;          ///< Tile flags: 1.0 = water (shader-animated), 0.0 = normal
+    float w, h;           ///< Sprite dimensions in world units
+    float tile_x, tile_y; ///< Tile grid position (used for wave phase offset)
+    float u, v, uw, vh;   ///< UV coordinates in texture atlas (u, v, width, height)
 } SpriteInstance;
 
 bool Renderer_Init(SDL_Window *window);
@@ -82,12 +82,10 @@ void Renderer_SetWaterParams(float time, float speed, float amplitude, float pha
  * @pre Renderer_BeginFrame() has been called.
  * @pre Renderer_SetViewProjection() has been called.
  */
-void Renderer_DrawSprites(SDL_GPUTexture *texture,
-                          const SpriteInstance *instances, int count);
+void Renderer_DrawSprites(SDL_GPUTexture *texture, const SpriteInstance *instances, int count);
 
 // Update the camera/view projection
-void Renderer_DrawLine(float x1, float y1, float z1, float x2, float y2,
-                       float z2, SDL_FColor color);
+void Renderer_DrawLine(float x1, float y1, float z1, float x2, float y2, float z2, SDL_FColor color);
 void Renderer_DrawGeometry(const SDL_Vertex *vertices, int count);
 
 TTF_TextEngine *Renderer_GetTextEngine(void);
@@ -115,20 +113,22 @@ typedef struct {
 void Renderer_FlushUIGeometry(const SDL_Vertex *vertices, int count);
 
 // Flush screen-space text (one draw call per atlas)
-void Renderer_FlushUIText(const float *vertices, int vertex_count,
-                          const int *indices, int index_count,
-                          const UITextAtlasInfo *atlases, int atlas_count);
-
+void Renderer_FlushUIText(const float *vertices,
+                          int vertex_count,
+                          const int *indices,
+                          int index_count,
+                          const UITextAtlasInfo *atlases,
+                          int atlas_count);
 
 /* ------------------ DEBUG UTILITIES ------------------ */
 // Debug: Draw a texture as a screen-space quad
-void Renderer_DrawTextureDebug(SDL_GPUTexture *texture, float x, float y,
-                               float width, float height);
+void Renderer_DrawTextureDebug(SDL_GPUTexture *texture, float x, float y, float width, float height);
 
 // Debug: Draw a filled colored quad using geometry pipeline (to verify rendering works)
-void Renderer_DrawFilledQuadDebug(float x, float y, float width, float height,
-                                  SDL_FColor color);
+void Renderer_DrawFilledQuadDebug(float x, float y, float width, float height, SDL_FColor color);
 
 void Renderer_SetPresentMode(SDL_GPUPresentMode mode);
+SDL_GPUPresentMode Renderer_GetPresentMode(void);
+const RendererFrameStats *Renderer_GetFrameStats(void);
 
 #endif // RENDERER_H
