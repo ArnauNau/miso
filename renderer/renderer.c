@@ -324,27 +324,20 @@ static Uint32 renderer_stream_used_bytes(const RendererUploadStream *const strea
     return stream->write_offset - stream->slot_base;
 }
 
+static void renderer_record_stream_stat(const RendererStatsStreamKind stream_kind, const RendererUploadStream *const stream) {
+    RendererStreamStats *const stream_stats = &g_frame_stats.streams[stream_kind];
+    stream_stats->used_bytes = renderer_stream_used_bytes(stream);
+    stream_stats->peak_bytes = stream->peak_used_bytes;
+    stream_stats->capacity_bytes = stream->slot_size;
+}
+
 static void renderer_record_stream_stats(void) {
-    g_frame_stats.sprite_stream_used_bytes = renderer_stream_used_bytes(&sprite_stream);
-    g_frame_stats.world_geom_stream_used_bytes = renderer_stream_used_bytes(&world_geom_stream);
-    g_frame_stats.line_stream_used_bytes = renderer_stream_used_bytes(&line_stream);
-    g_frame_stats.ui_geom_stream_used_bytes = renderer_stream_used_bytes(&ui_geom_stream);
-    g_frame_stats.ui_text_vert_stream_used_bytes = renderer_stream_used_bytes(&ui_text_vert_stream);
-    g_frame_stats.ui_text_index_stream_used_bytes = renderer_stream_used_bytes(&ui_text_index_stream);
-
-    g_frame_stats.sprite_stream_peak_bytes = sprite_stream.peak_used_bytes;
-    g_frame_stats.world_geom_stream_peak_bytes = world_geom_stream.peak_used_bytes;
-    g_frame_stats.line_stream_peak_bytes = line_stream.peak_used_bytes;
-    g_frame_stats.ui_geom_stream_peak_bytes = ui_geom_stream.peak_used_bytes;
-    g_frame_stats.ui_text_vert_stream_peak_bytes = ui_text_vert_stream.peak_used_bytes;
-    g_frame_stats.ui_text_index_stream_peak_bytes = ui_text_index_stream.peak_used_bytes;
-
-    g_frame_stats.sprite_stream_capacity_bytes = sprite_stream.slot_size;
-    g_frame_stats.world_geom_stream_capacity_bytes = world_geom_stream.slot_size;
-    g_frame_stats.line_stream_capacity_bytes = line_stream.slot_size;
-    g_frame_stats.ui_geom_stream_capacity_bytes = ui_geom_stream.slot_size;
-    g_frame_stats.ui_text_vert_stream_capacity_bytes = ui_text_vert_stream.slot_size;
-    g_frame_stats.ui_text_index_stream_capacity_bytes = ui_text_index_stream.slot_size;
+    renderer_record_stream_stat(RENDERER_STATS_STREAM_SPRITE, &sprite_stream);
+    renderer_record_stream_stat(RENDERER_STATS_STREAM_WORLD_GEOMETRY, &world_geom_stream);
+    renderer_record_stream_stat(RENDERER_STATS_STREAM_LINE, &line_stream);
+    renderer_record_stream_stat(RENDERER_STATS_STREAM_UI_GEOMETRY, &ui_geom_stream);
+    renderer_record_stream_stat(RENDERER_STATS_STREAM_UI_TEXT_VERT, &ui_text_vert_stream);
+    renderer_record_stream_stat(RENDERER_STATS_STREAM_UI_TEXT_INDEX, &ui_text_index_stream);
 }
 
 static void renderer_reset_queues(void) {
@@ -368,11 +361,11 @@ static float renderer_elapsed_ms(const Uint64 start, const Uint64 end) {
 }
 
 static void renderer_count_pass_begin(void) {
-    g_frame_stats.render_pass_begin_calls++;
+    g_frame_stats.passes.begin_calls++;
 }
 
 static void renderer_count_pass_end(void) {
-    g_frame_stats.render_pass_end_calls++;
+    g_frame_stats.passes.end_calls++;
 }
 
 static void renderer_bind_sprite_pipeline(SDL_GPURenderPass *const pass, SDL_GPUTexture *const texture) {
@@ -400,7 +393,7 @@ static void renderer_draw_world_pass(SDL_GPUCommandBuffer *const cmd) {
 
     SDL_GPURenderPass *const pass = SDL_BeginGPURenderPass(cmd, &color_target, 1, &depth_target);
     renderer_count_pass_begin();
-    g_frame_stats.world_passes++;
+    g_frame_stats.passes.world_passes++;
 
     const SDL_GPUTexture *bound_sprite_tex = nullptr;
     for (Uint32 i = 0; i < sprite_cmd_count; i++) {
@@ -417,7 +410,7 @@ static void renderer_draw_world_pass(SDL_GPUCommandBuffer *const cmd) {
         SDL_PushGPUVertexUniformData(cmd, 0, &cmdi->uniforms, sizeof(SpriteUniforms));
         SDL_DrawGPUPrimitives(pass, 6, cmdi->instance_count, 0, cmdi->first_instance);
 
-        g_frame_stats.sprite_draw_calls++;
+        g_frame_stats.queues[RENDERER_STATS_QUEUE_SPRITE].draw_calls++;
     }
 
     for (Uint32 i = 0; i < world_geom_cmd_count; i++) {
@@ -432,7 +425,7 @@ static void renderer_draw_world_pass(SDL_GPUCommandBuffer *const cmd) {
         SDL_PushGPUVertexUniformData(cmd, 0, cmdi->matrix, sizeof(float) * 16U);
         SDL_DrawGPUPrimitives(pass, cmdi->vertex_count, 1, 0, 0);
 
-        g_frame_stats.world_geometry_draw_calls++;
+        g_frame_stats.queues[RENDERER_STATS_QUEUE_WORLD_GEOMETRY].draw_calls++;
     }
 
     for (Uint32 i = 0; i < line_cmd_count; i++) {
@@ -445,7 +438,7 @@ static void renderer_draw_world_pass(SDL_GPUCommandBuffer *const cmd) {
         SDL_PushGPUFragmentUniformData(cmd, 0, &cmdi->color, sizeof(cmdi->color));
         SDL_DrawGPUPrimitives(pass, 2, 1, 0, 0);
 
-        g_frame_stats.line_draw_calls++;
+        g_frame_stats.queues[RENDERER_STATS_QUEUE_LINE].draw_calls++;
     }
 
     SDL_EndGPURenderPass(pass);
@@ -461,7 +454,7 @@ static void renderer_draw_ui_pass(SDL_GPUCommandBuffer *cmd) {
 
     SDL_GPURenderPass *const pass = SDL_BeginGPURenderPass(cmd, &color_target, 1, NULL);
     renderer_count_pass_begin();
-    g_frame_stats.ui_passes++;
+    g_frame_stats.passes.ui_passes++;
 
     for (Uint32 i = 0; i < ui_geom_cmd_count; i++) {
         const GeometryCmd *cmdi = &ui_geom_cmds[i];
@@ -475,7 +468,7 @@ static void renderer_draw_ui_pass(SDL_GPUCommandBuffer *cmd) {
         SDL_PushGPUVertexUniformData(cmd, 0, g_screen_projection, sizeof(float) * 16U);
         SDL_DrawGPUPrimitives(pass, cmdi->vertex_count, 1, 0, 0);
 
-        g_frame_stats.ui_geometry_draw_calls++;
+        g_frame_stats.queues[RENDERER_STATS_QUEUE_UI_GEOMETRY].draw_calls++;
     }
 
     for (Uint32 i = 0; i < ui_text_cmd_count; i++) {
@@ -506,7 +499,7 @@ static void renderer_draw_ui_pass(SDL_GPUCommandBuffer *cmd) {
                 pass, 0, &((SDL_GPUTextureSamplerBinding){.texture = range->atlas, .sampler = sampler}), 1);
             SDL_DrawGPUIndexedPrimitives(pass, range->index_count, 1, range->start_index, 0, 0);
 
-            g_frame_stats.ui_text_draw_calls++;
+            g_frame_stats.queues[RENDERER_STATS_QUEUE_UI_TEXT].draw_calls++;
         }
     }
 
@@ -1085,7 +1078,7 @@ void Renderer_BeginFrame(void) {
     const Uint64 acquire_start = SDL_GetPerformanceCounter();
     const bool got_swapchain = SDL_AcquireGPUSwapchainTexture(cmd_buffer, render_window, &swapchain_texture, nullptr, nullptr);
     const Uint64 acquire_end = SDL_GetPerformanceCounter();
-    g_frame_stats.swapchain_acquire_ms = renderer_elapsed_ms(acquire_start, acquire_end);
+    g_frame_stats.timing.swapchain_acquire_ms = renderer_elapsed_ms(acquire_start, acquire_end);
 
     if (!got_swapchain) {
         SDL_SubmitGPUCommandBuffer(cmd_buffer);
@@ -1130,7 +1123,7 @@ void Renderer_EndFrame(void) {
     const Uint64 submit_start = SDL_GetPerformanceCounter();
     SDL_SubmitGPUCommandBuffer(cmd_buffer);
     const Uint64 submit_end = SDL_GetPerformanceCounter();
-    g_frame_stats.submit_ms = renderer_elapsed_ms(submit_start, submit_end);
+    g_frame_stats.timing.submit_ms = renderer_elapsed_ms(submit_start, submit_end);
     cmd_buffer = nullptr;
     swapchain_texture = nullptr;
 }
@@ -1188,7 +1181,7 @@ void Renderer_DrawSprites(SDL_GPUTexture *const texture, const SpriteInstance *c
         cmd->uniforms = sprite_uniforms;
     }
 
-    g_frame_stats.sprite_cmd_count = sprite_cmd_count;
+    g_frame_stats.queues[RENDERER_STATS_QUEUE_SPRITE].cmd_count = sprite_cmd_count;
 }
 
 void Renderer_DrawLine(const float x1, const float y1, const float z1, const float x2, const float y2, const float z2,
@@ -1208,7 +1201,7 @@ void Renderer_DrawLine(const float x1, const float y1, const float z1, const flo
     cmd->color = color;
     SDL_memcpy(cmd->matrix, sprite_uniforms.viewProjection, sizeof(float) * 16U);
 
-    g_frame_stats.line_cmd_count = line_cmd_count;
+    g_frame_stats.queues[RENDERER_STATS_QUEUE_LINE].cmd_count = line_cmd_count;
 }
 
 void Renderer_DrawGeometry(const SDL_Vertex *const vertices, const int count) {
@@ -1231,7 +1224,7 @@ void Renderer_DrawGeometry(const SDL_Vertex *const vertices, const int count) {
     cmd->vertex_count = (Uint32)count;
     SDL_memcpy(cmd->matrix, sprite_uniforms.viewProjection, sizeof(float) * 16U);
 
-    g_frame_stats.world_geometry_cmd_count = world_geom_cmd_count;
+    g_frame_stats.queues[RENDERER_STATS_QUEUE_WORLD_GEOMETRY].cmd_count = world_geom_cmd_count;
 }
 
 void Renderer_DrawGeometryScreenSpace(const SDL_Vertex *vertices, const int count) {
@@ -1295,7 +1288,7 @@ void Renderer_DrawText(TTF_Text *text, const float x, const float y) {
         seq = seq->next;
     }
 
-    g_frame_stats.ui_text_cmd_count = ui_text_cmd_count;
+    g_frame_stats.queues[RENDERER_STATS_QUEUE_UI_TEXT].cmd_count = ui_text_cmd_count;
 }
 
 void Renderer_FlushUIGeometry(const SDL_Vertex *vertices, const int count) {
@@ -1318,7 +1311,7 @@ void Renderer_FlushUIGeometry(const SDL_Vertex *vertices, const int count) {
     cmd->vertex_count = (Uint32)count;
     SDL_memcpy(cmd->matrix, g_screen_projection, sizeof(float) * 16U);
 
-    g_frame_stats.ui_geometry_cmd_count = ui_geom_cmd_count;
+    g_frame_stats.queues[RENDERER_STATS_QUEUE_UI_GEOMETRY].cmd_count = ui_geom_cmd_count;
 }
 
 void Renderer_FlushUIText(const float *const restrict vertices,
@@ -1371,7 +1364,7 @@ void Renderer_FlushUIText(const float *const restrict vertices,
     }
     cmd->range_count = ranges_written;
 
-    g_frame_stats.ui_text_cmd_count = ui_text_cmd_count;
+    g_frame_stats.queues[RENDERER_STATS_QUEUE_UI_TEXT].cmd_count = ui_text_cmd_count;
 }
 
 void Renderer_DrawTextureDebug(SDL_GPUTexture *texture, const float x, const float y, const float width, const float height) {

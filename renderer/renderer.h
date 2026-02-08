@@ -26,6 +26,55 @@ typedef struct {
     float u, v, uw, vh;   ///< UV coordinates in texture atlas (u, v, width, height)
 } SpriteInstance;
 
+typedef enum RendererStatsQueueKind {
+    RENDERER_STATS_QUEUE_SPRITE = 0,
+    RENDERER_STATS_QUEUE_WORLD_GEOMETRY,
+    RENDERER_STATS_QUEUE_LINE,
+    RENDERER_STATS_QUEUE_UI_GEOMETRY,
+    RENDERER_STATS_QUEUE_UI_TEXT,
+    RENDERER_STATS_QUEUE_COUNT
+} RendererStatsQueueKind;
+
+typedef enum RendererStatsStreamKind {
+    RENDERER_STATS_STREAM_SPRITE = 0,
+    RENDERER_STATS_STREAM_WORLD_GEOMETRY,
+    RENDERER_STATS_STREAM_LINE,
+    RENDERER_STATS_STREAM_UI_GEOMETRY,
+    RENDERER_STATS_STREAM_UI_TEXT_VERT,
+    RENDERER_STATS_STREAM_UI_TEXT_INDEX,
+    RENDERER_STATS_STREAM_COUNT
+} RendererStatsStreamKind;
+
+typedef struct RendererQueueStats {
+    Uint32 cmd_count;
+    Uint32 draw_calls;
+} RendererQueueStats;
+
+typedef struct RendererPassStats {
+    Uint32 begin_calls;
+    Uint32 end_calls;
+    Uint32 world_passes;
+    Uint32 ui_passes;
+} RendererPassStats;
+
+typedef struct RendererTimingStats {
+    float swapchain_acquire_ms;
+    float submit_ms;
+} RendererTimingStats;
+
+typedef struct RendererStreamStats {
+    Uint32 used_bytes;
+    Uint32 peak_bytes;
+    Uint32 capacity_bytes;
+} RendererStreamStats;
+
+typedef struct RendererFrameStats {
+    RendererQueueStats queues[RENDERER_STATS_QUEUE_COUNT];
+    RendererPassStats passes;
+    RendererTimingStats timing;
+    RendererStreamStats streams[RENDERER_STATS_STREAM_COUNT];
+} RendererFrameStats;
+
 bool Renderer_Init(SDL_Window *window);
 void Renderer_Shutdown(void);
 void Renderer_Resize(int width, int height);
