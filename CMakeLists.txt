@@ -3,107 +3,143 @@ project(miso C)
 
 set(CMAKE_C_STANDARD 23)
 
-# Default to Debug if not specified
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
 endif()
 
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 
-# Common warnings for all builds
 set(COMMON_WARNINGS -Wall -Wextra -Wpedantic -Wshadow -Wconversion)
+set(DEBUG_FLAGS -g -O0 -fsanitize=address,undefined -fsanitize-address-use-after-scope)
+set(RELEASE_FLAGS -O2 -flto)
 
-# Debug configuration
-set(DEBUG_FLAGS
-    -g -O0
-    -fsanitize=address,undefined
-    -fsanitize-address-use-after-scope
-)
-
-# Release configuration
-set(RELEASE_FLAGS
-    -O2 -flto
-)
-
-# --- PGO toggles (only for miso) ---
 option(MISO_PGO_GENERATE "Build instrumented binary to generate PGO profile" OFF)
 set(MISO_PGO_PROFILE_DIR "" CACHE PATH "Directory where profraw files will be written")
 set(MISO_PGO_USE_PROFDATA "" CACHE FILEPATH "Path to merged .profdata for PGO use phase")
+option(MISO_BUILD_TESTBED "Build testbed engine-client target" ON)
 
-# Add SDL3, SDL_ttf, SDL_image as subdirectories
 add_subdirectory(vendored/SDL EXCLUDE_FROM_ALL)
 add_subdirectory(vendored/SDL_ttf EXCLUDE_FROM_ALL)
 add_subdirectory(vendored/SDL_image EXCLUDE_FROM_ALL)
 
-# Source files
-set(MISO_SOURCES
-    main.c
+function(miso_apply_compile_options target_name)
+    target_compile_options(${target_name} PRIVATE ${COMMON_WARNINGS})
+
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        target_compile_options(${target_name} PRIVATE ${DEBUG_FLAGS})
+        target_compile_definitions(${target_name} PRIVATE MISO_DEBUG)
+    elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
+        target_compile_options(${target_name} PRIVATE ${RELEASE_FLAGS})
+    endif()
+endfunction()
+
+set(MISO_CORE_SOURCES
     profiler.c
-    profiler.h
-    game_clock.h
     camera/camera.c
-    camera/camera.h
     ecs/entity.c
-    ecs/entity.h
     ecs/sparse_set.c
-    ecs/sparse_set.h
     ecs/ecs.c
-    ecs/ecs.h
     renderer/renderer.c
-    renderer/renderer.h
-    renderer/renderer_internal.h
     renderer/ui.c
-    renderer/ui.h
-    renderer/nuklear_sdl3_gpu.h
     tilemap/tilemap.c
-    tilemap/tilemap.h
     debug_ui.c
-    debug_ui.h
-    logger.h
+    engine/src/miso_engine.c
+    engine/src/miso_events.c
+    engine/src/miso_camera.c
+    engine/src/miso_world.c
+    engine/src/miso_buildings.c
+    engine/src/miso_render.c
+    engine/src/miso_debug_ui.c
 )
 
-# Define executable
-add_executable(miso ${MISO_SOURCES})
+#set(MISO_GAME_CAFE_SOURCES
+#    prototypes/cafe-tycoon-proto/src/sim/miso_game_cafe.c
+#)
 
-target_compile_options(miso PRIVATE ${COMMON_WARNINGS})
+add_library(miso_core STATIC ${MISO_CORE_SOURCES})
+#add_library(miso_game_cafe STATIC ${MISO_GAME_CAFE_SOURCES})
 
-# Apply flags based on build type
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    target_compile_options(miso PRIVATE ${DEBUG_FLAGS})
-    target_link_options(miso PRIVATE
-            -fsanitize=address,undefined
-            -fsanitize-address-use-after-scope
+miso_apply_compile_options(miso_core)
+#miso_apply_compile_options(miso_game_cafe)
+
+target_include_directories(miso_core
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/engine/include
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/engine/src
+)
+
+#target_include_directories(miso_game_cafe
+#    PUBLIC
+#        ${CMAKE_CURRENT_SOURCE_DIR}/prototypes/cafe-tycoon-proto/include
+#    PRIVATE
+#        ${CMAKE_CURRENT_SOURCE_DIR}
+#        ${CMAKE_CURRENT_SOURCE_DIR}/engine/include
+#)
+
+target_link_libraries(miso_core
+    PUBLIC
+        SDL3::SDL3
+        SDL3_ttf::SDL3_ttf
+        SDL3_image::SDL3_image
+)
+
+#target_link_libraries(miso_game_cafe
+#    PUBLIC
+#        miso_core
+#)
+
+add_executable(miso main.c)
+miso_apply_compile_options(miso)
+
+target_include_directories(miso PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/engine/include
+    #${CMAKE_CURRENT_SOURCE_DIR}/prototypes/cafe-tycoon-proto/include
+)
+
+target_link_libraries(miso PRIVATE miso_core)
+
+if(MISO_BUILD_TESTBED)
+    add_executable(miso_testbed
+        testbed/main_testbed.c
+        testbed/testbed_game.c
     )
-    target_compile_definitions(miso PRIVATE MISO_DEBUG)
-    message(STATUS "Debug build: sanitizers ON, optimization OFF, MISO_DEBUG defined")
+    miso_apply_compile_options(miso_testbed)
 
-elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
-    target_compile_options(miso PRIVATE ${RELEASE_FLAGS})
-    target_link_options(miso PRIVATE -flto)
+    target_include_directories(miso_testbed PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
 
-    message(STATUS "Release build: sanitizers OFF, optimization ON, LTO ON")
-
+    target_link_libraries(miso_testbed PRIVATE miso_core)
 endif()
 
-# --- PGO Phase 1: Generate (instrument) ---
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    target_link_options(miso PRIVATE -fsanitize=address,undefined -fsanitize-address-use-after-scope)
+    if(TARGET miso_testbed)
+        target_link_options(miso_testbed PRIVATE -fsanitize=address,undefined -fsanitize-address-use-after-scope)
+    endif()
+    message(STATUS "Debug build: sanitizers ON, optimization OFF, MISO_DEBUG defined")
+elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
+    target_link_options(miso PRIVATE -flto)
+    if(TARGET miso_testbed)
+        target_link_options(miso_testbed PRIVATE -flto)
+    endif()
+    message(STATUS "Release build: sanitizers OFF, optimization ON, LTO ON")
+endif()
+
 if(MISO_PGO_GENERATE)
     if(MISO_PGO_PROFILE_DIR STREQUAL "")
         message(FATAL_ERROR "MISO_PGO_GENERATE=ON requires MISO_PGO_PROFILE_DIR to be set")
     endif()
 
     message(STATUS "PGO Generation enabled. Instrumented binary will write profiles to: ${MISO_PGO_PROFILE_DIR}")
-    # LLVM PGO instrumentation (Clang)
     target_compile_options(miso PRIVATE -fprofile-instr-generate)
     target_link_options(miso PRIVATE -fprofile-instr-generate)
-
-    # Where runtime writes profraw
-    # %m expands to binary name; creates one file per process.
-    target_compile_definitions(miso PRIVATE
-            "MISO_PGO_PROFILE_DIR=\"${MISO_PGO_PROFILE_DIR}\""
-    )
+    target_compile_definitions(miso PRIVATE "MISO_PGO_PROFILE_DIR=\"${MISO_PGO_PROFILE_DIR}\"")
 endif()
 
-# --- PGO Phase 2: Use (optimize with .profdata) ---
 if(NOT MISO_PGO_USE_PROFDATA STREQUAL "")
     if(NOT EXISTS "${MISO_PGO_USE_PROFDATA}")
         message(FATAL_ERROR "MISO_PGO_USE_PROFDATA points to missing file: ${MISO_PGO_USE_PROFDATA}")
@@ -114,13 +150,73 @@ if(NOT MISO_PGO_USE_PROFDATA STREQUAL "")
     target_link_options(miso PRIVATE -fprofile-instr-use=${MISO_PGO_USE_PROFDATA})
 endif()
 
-# Link against vendored libraries
-target_link_libraries(miso PRIVATE
-    SDL3::SDL3 SDL3_ttf::SDL3_ttf SDL3_image::SDL3_image)
+find_program(CLANG_FORMAT_EXE NAMES clang-format)
+option(MISO_FORMAT_ON_BUILD "Run formatting target before building miso" OFF)
+
+file(GLOB_RECURSE MISO_FORMAT_C_FILES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/*.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/*.h"
+)
+list(FILTER MISO_FORMAT_C_FILES EXCLUDE REGEX "/vendored/")
+list(FILTER MISO_FORMAT_C_FILES EXCLUDE REGEX "/cmake-build-[^/]+/")
+
+if(CLANG_FORMAT_EXE)
+    add_custom_target(format
+        COMMAND ${CLANG_FORMAT_EXE} -i ${MISO_FORMAT_C_FILES}
+        COMMENT "Running clang-format"
+        VERBATIM
+    )
+else()
+    add_custom_target(format
+        COMMENT "Formatting C sources"
+    )
+    message(WARNING "clang-format not found. 'format' target will skip C/C header formatting.")
+endif()
+
+if(MISO_FORMAT_ON_BUILD)
+    if(NOT CLANG_FORMAT_EXE)
+        message(FATAL_ERROR "MISO_FORMAT_ON_BUILD=ON requires clang-format in PATH.")
+    endif()
+    add_dependencies(miso format)
+endif()
+
+find_program(RG_EXE rg)
+add_custom_target(miso_boundary_lint
+    COMMAND ${CMAKE_COMMAND}
+        -DSRC_DIR=${CMAKE_CURRENT_SOURCE_DIR}
+        -DRG_EXE=${RG_EXE}
+        -DLINT_CORE=ON
+        -DLINT_GAME_CAFE=OFF
+        -DLINT_TESTBED=OFF
+        -DLINT_ENGINE_PORTABILITY=ON
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/miso_boundary_lint.cmake
+)
+
+add_dependencies(miso miso_boundary_lint)
+if(TARGET miso_testbed)
+    add_custom_target(miso_testbed_boundary_lint
+        COMMAND ${CMAKE_COMMAND}
+            -DSRC_DIR=${CMAKE_CURRENT_SOURCE_DIR}
+            -DRG_EXE=${RG_EXE}
+            -DLINT_CORE=OFF
+            -DLINT_GAME_CAFE=OFF
+            -DLINT_TESTBED=ON
+            -DLINT_ENGINE_PORTABILITY=OFF
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/miso_boundary_lint.cmake
+    )
+    add_dependencies(miso_testbed miso_testbed_boundary_lint)
+endif()
 
 if(APPLE)
     set_target_properties(miso PROPERTIES
         MACOSX_BUNDLE TRUE
         MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/Info.plist"
     )
+    if(TARGET miso_testbed)
+        set_target_properties(miso_testbed PROPERTIES
+            OUTPUT_NAME "NAU_Engine"
+            MACOSX_BUNDLE TRUE
+            MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/Info.plist"
+        )
+    endif()
 endif()
